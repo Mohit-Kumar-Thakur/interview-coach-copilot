@@ -38,9 +38,10 @@ Check:
 http://localhost:8000/health
 
 http://localhost:8000/docs
+```
 
 ### 2) Frontend
-
+```bash
 cd frontend
 npm install
 npm run dev
