@@ -66,3 +66,26 @@ Outputs structured JSON:
 Response:
 ```json
 { "status": "ok" }
+```
+
+---
+
+## Day 2 Update — Session Flow (In-Memory)
+
+### Backend
+- Added in-memory session store: `SESSIONS` dict
+- `/api/interview/start`
+  - generates unique `session_id`
+  - stores session state: round, difficulty, messages, question index
+- `/api/interview/message`
+  - validates session_id
+  - appends user message
+  - generates rule-based interviewer follow-up based on round
+  - returns assistant reply + full message history
+
+### Frontend
+- Implemented real interview flow on `/interview`
+  - Round selector (HR / DSA / System Design)
+  - Start Interview (calls backend, receives session_id + first question)
+  - Send message (calls backend, receives follow-up reply)
+- Shows session_id in UI

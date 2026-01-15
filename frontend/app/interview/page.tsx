@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+
+type RoundType = "HR" | "DSA" | "SD";
 
 type Message = {
   role: "user" | "assistant";
@@ -9,28 +11,81 @@ type Message = {
 };
 
 export default function InterviewPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi Mohit. Let's start your mock interview." },
-    { role: "assistant", content: "Round: HR. Tell me about yourself." },
-  ]);
+  const [round, setRound] = useState<RoundType>("HR");
+  const [difficulty] = useState("medium");
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [healthStatus, setHealthStatus] = useState<string>("Not tested");
+  const [loading, setLoading] = useState(false);
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    setMessages((prev) => [...prev, { role: "user", content: input.trim() }]);
-    setInput("");
-  };
+  const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
 
   const testBackend = async () => {
     try {
       setHealthStatus("Testing...");
-      const res = await fetch("http://127.0.0.1:8000/health", { cache: "no-store" });
-
+      const res = await fetch(`${backendBase}/health`, { cache: "no-store" });
       const data = await res.json();
       setHealthStatus(JSON.stringify(data));
-    } catch (err) {
+    } catch {
       setHealthStatus("Backend not reachable / CORS issue");
+    }
+  };
+
+  const startInterview = async () => {
+    try {
+      setLoading(true);
+      setMessages([]);
+      setSessionId(null);
+
+      const res = await fetch(`${backendBase}/api/interview/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ round, difficulty }),
+      });
+
+      const data = await res.json();
+
+      setSessionId(data.session_id);
+      setMessages([{ role: "assistant", content: data.first_question }]);
+    } catch {
+      alert("Failed to start interview. Check backend running on :8000");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+    if (!sessionId) {
+      alert("Start interview first.");
+      return;
+    }
+
+    const userText = input.trim();
+    setInput("");
+
+    // Add user message immediately
+    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+
+    try {
+      setLoading(true);
+
+      const res = await fetch(`${backendBase}/api/interview/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: userText }),
+      });
+
+      const data = await res.json();
+
+      // Add assistant reply
+      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+    } catch {
+      alert("Failed to send message. Check backend + CORS.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,27 +104,53 @@ export default function InterviewPage() {
         </div>
       </div>
 
-      {/* Layout */}
       <div className="grid grid-cols-12 gap-6">
         {/* Left panel */}
         <section className="col-span-12 md:col-span-3 bg-white rounded-xl shadow p-4">
           <h2 className="font-semibold mb-3">Session Info</h2>
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-3 text-sm">
             <div>
-              <span className="font-medium">Round:</span> HR
+              <label htmlFor="round" className="font-medium block mb-1">
+                Round
+              </label>
+              <select
+                id="round"
+                name="round"
+                aria-label="Round"
+                value={round}
+                onChange={(e) => setRound(e.target.value as RoundType)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                disabled={loading}
+              >
+
+                <option value="HR">HR</option>
+                <option value="DSA">DSA</option>
+                <option value="SD">System Design</option>
+              </select>
             </div>
+
             <div>
-              <span className="font-medium">Difficulty:</span> Medium
+              <span className="font-medium">Difficulty:</span> {difficulty}
             </div>
-            <div>
-              <span className="font-medium">Timer:</span> 00:00 (placeholder)
+
+            <div className="text-xs break-words">
+              <span className="font-medium">Session ID:</span>{" "}
+              {sessionId ? sessionId : "--"}
             </div>
           </div>
 
           <button
+            onClick={startInterview}
+            disabled={loading}
+            className="mt-4 w-full rounded-lg bg-black text-white py-2 text-sm disabled:opacity-60"
+          >
+            {loading ? "Starting..." : "Start Interview"}
+          </button>
+
+          <button
             onClick={testBackend}
-            className="mt-4 w-full rounded-lg bg-black text-white py-2 text-sm"
+            className="mt-3 w-full rounded-lg border py-2 text-sm"
           >
             Test Backend
           </button>
@@ -83,18 +164,24 @@ export default function InterviewPage() {
         <section className="col-span-12 md:col-span-9 bg-white rounded-xl shadow p-4 flex flex-col h-[75vh]">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            {messages.map((m, idx) => (
-              <div
-                key={idx}
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                  m.role === "user"
-                    ? "ml-auto bg-black text-white"
-                    : "bg-gray-100 text-gray-900"
-                }`}
-              >
-                {m.content}
+            {messages.length === 0 ? (
+              <div className="text-sm text-gray-500">
+                Click <b>Start Interview</b> to begin.
               </div>
-            ))}
+            ) : (
+              messages.map((m, idx) => (
+                <div
+                  key={idx}
+                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    m.role === "user"
+                      ? "ml-auto bg-black text-white"
+                      : "bg-gray-100 text-gray-900"
+                  }`}
+                >
+                  {m.content}
+                </div>
+              ))
+            )}
           </div>
 
           {/* Input */}
@@ -104,15 +191,17 @@ export default function InterviewPage() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your answer..."
               className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              disabled={loading}
               onKeyDown={(e) => {
                 if (e.key === "Enter") sendMessage();
               }}
             />
             <button
               onClick={sendMessage}
-              className="rounded-lg bg-black text-white px-4 py-2 text-sm"
+              disabled={loading}
+              className="rounded-lg bg-black text-white px-4 py-2 text-sm disabled:opacity-60"
             >
-              Send
+              {loading ? "..." : "Send"}
             </button>
           </div>
         </section>
