@@ -10,6 +10,19 @@ type Message = {
   content: string;
 };
 
+type Evaluation = {
+  score: number;
+  rubric: {
+    clarity: number;
+    structure: number;
+    relevance: number;
+    impact: number;
+  };
+  strengths: string[];
+  improvements: string[];
+  ideal_answer: string;
+};
+
 export default function InterviewPage() {
   const [round, setRound] = useState<RoundType>("HR");
   const [difficulty] = useState("medium");
@@ -19,6 +32,7 @@ export default function InterviewPage() {
   const [input, setInput] = useState("");
   const [healthStatus, setHealthStatus] = useState<string>("Not tested");
   const [loading, setLoading] = useState(false);
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
 
@@ -38,6 +52,7 @@ export default function InterviewPage() {
       setLoading(true);
       setMessages([]);
       setSessionId(null);
+      setEvaluation(null);
 
       const res = await fetch(`${backendBase}/api/interview/start`, {
         method: "POST",
@@ -82,6 +97,11 @@ export default function InterviewPage() {
 
       // Add assistant reply
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+
+      // Store evaluation if present (HR only)
+      if (data.evaluation) {
+        setEvaluation(data.evaluation);
+      }
     } catch {
       alert("Failed to send message. Check backend + CORS.");
     } finally {
@@ -123,7 +143,6 @@ export default function InterviewPage() {
                 className="w-full border rounded-lg px-3 py-2 text-sm"
                 disabled={loading}
               >
-
                 <option value="HR">HR</option>
                 <option value="DSA">DSA</option>
                 <option value="SD">System Design</option>
@@ -155,54 +174,129 @@ export default function InterviewPage() {
             Test Backend
           </button>
 
-          <p className="mt-2 text-xs text-gray-600 break-words">
+          <p className="mt-2 text-xs text-gray-700 break-words">
             Health: {healthStatus}
           </p>
         </section>
 
-        {/* Chat panel */}
-        <section className="col-span-12 md:col-span-9 bg-white rounded-xl shadow p-4 flex flex-col h-[75vh]">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            {messages.length === 0 ? (
-              <div className="text-sm text-gray-500">
-                Click <b>Start Interview</b> to begin.
+        {/* Chat + Evaluation panel */}
+        <section className="col-span-12 md:col-span-9 bg-white rounded-xl shadow p-4 h-[75vh]">
+          <div className="grid grid-cols-12 gap-4 h-full">
+            {/* Chat side */}
+            <div className="col-span-12 lg:col-span-8 flex flex-col h-full">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                {messages.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    Click <b>Start Interview</b> to begin.
+                  </div>
+                ) : (
+                  messages.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                        m.role === "user"
+                          ? "ml-auto bg-black text-white"
+                          : "bg-gray-100 text-gray-900"
+                      }`}
+                    >
+                      {m.content}
+                    </div>
+                  ))
+                )}
               </div>
-            ) : (
-              messages.map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                    m.role === "user"
-                      ? "ml-auto bg-black text-white"
-                      : "bg-gray-100 text-gray-900"
-                  }`}
-                >
-                  {m.content}
-                </div>
-              ))
-            )}
-          </div>
 
-          {/* Input */}
-          <div className="mt-4 flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your answer..."
-              className="flex-1 border rounded-lg px-3 py-2 text-sm"
-              disabled={loading}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") sendMessage();
-              }}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={loading}
-              className="rounded-lg bg-black text-white px-4 py-2 text-sm disabled:opacity-60"
-            >
-              {loading ? "..." : "Send"}
-            </button>
+              {/* Input */}
+              <div className="mt-4 flex gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your answer..."
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                  disabled={loading}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") sendMessage();
+                  }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={loading}
+                  className="rounded-lg bg-black text-white px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {loading ? "..." : "Send"}
+                </button>
+              </div>
+            </div>
+
+            {/* Evaluation side */}
+            <div className="col-span-12 lg:col-span-4 border rounded-xl p-4 bg-gray-50 overflow-y-auto text-gray-900">
+              <h3 className="font-semibold mb-3">Evaluation</h3>
+
+              {!evaluation ? (
+                <p className="text-sm text-gray-700">
+                  No evaluation yet. Send an HR answer to see scoring.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Score */}
+                  <div className="bg-white border rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Score</span>
+                      <span className="font-bold text-lg">
+                        {evaluation.score}/10
+                      </span>
+                    </div>
+
+                    <div className="mt-3 text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span>Clarity</span>
+                        <span>{evaluation.rubric.clarity}/10</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Structure</span>
+                        <span>{evaluation.rubric.structure}/10</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Relevance</span>
+                        <span>{evaluation.rubric.relevance}/10</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Impact</span>
+                        <span>{evaluation.rubric.impact}/10</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Strengths */}
+                  <div className="bg-white border rounded-xl p-4">
+                    <p className="font-semibold mb-2">Strengths</p>
+                    <ul className="list-disc pl-5 text-sm space-y-1 text-gray-800">
+                      {evaluation.strengths.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Improvements */}
+                  <div className="bg-white border rounded-xl p-4">
+                    <p className="font-semibold mb-2">Improvements</p>
+                    <ul className="list-disc pl-5 text-sm space-y-1 text-gray-800">
+                      {evaluation.improvements.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Ideal Answer */}
+                  <div className="bg-white border rounded-xl p-4">
+                    <p className="font-semibold mb-2">Ideal Answer</p>
+                    <p className="text-sm text-gray-800">
+                      {evaluation.ideal_answer}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       </div>

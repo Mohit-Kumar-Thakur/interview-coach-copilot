@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from uuid import uuid4
 from typing import Dict, List, Literal
+from evaluator import evaluate_hr_answer
+
 
 app = FastAPI(title="Interview Coach Copilot API")
 
@@ -50,6 +52,12 @@ class StartInterviewRequest(BaseModel):
 class MessageRequest(BaseModel):
     session_id: str
     message: str
+    
+class EvaluateRequest(BaseModel):
+    round: Literal["HR", "DSA", "SD"]
+    question: str
+    answer: str
+
 
 
 @app.get("/health")
@@ -118,23 +126,47 @@ def interview_message(payload: MessageRequest):
     if not session:
         raise HTTPException(status_code=404, detail="Invalid session_id. Start interview again.")
 
+    # Find the latest assistant question (last assistant message)
+    last_assistant_question = None
+    for m in reversed(session["messages"]):
+        if m["role"] == "assistant":
+            last_assistant_question = m["content"]
+            break
+
+    if not last_assistant_question:
+        last_assistant_question = "Tell me about yourself."
+
     # Add user message
     session["messages"].append({"role": "user", "content": payload.message})
 
-    # Generate interviewer follow-up
+    # Generate interviewer follow-up reply
     round_type = session["round"]
     q_index = session["current_question_index"]
-
     reply = generate_followup(round_type, payload.message, q_index)
 
     # Add assistant reply
     session["messages"].append({"role": "assistant", "content": reply})
 
-    # Move "question index" forward (simple increment)
+    # Update question index
     session["current_question_index"] = min(q_index + 1, 999)
 
-    return {
+    response = {
         "session_id": payload.session_id,
         "reply": reply,
         "messages": session["messages"],
     }
+
+    # Attach evaluation ONLY for HR (Day 3)
+    if round_type == "HR":
+        evaluation = evaluate_hr_answer(last_assistant_question, payload.message)
+        response["evaluation"] = evaluation
+
+    return response
+
+
+@app.post("/api/evaluate")
+def evaluate(payload: EvaluateRequest):
+    if payload.round != "HR":
+        return {"note": "Only HR evaluation implemented on Day 3"}
+
+    return evaluate_hr_answer(payload.question, payload.answer)

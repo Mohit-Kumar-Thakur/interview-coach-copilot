@@ -89,3 +89,26 @@ Response:
   - Start Interview (calls backend, receives session_id + first question)
   - Send message (calls backend, receives follow-up reply)
 - Shows session_id in UI
+
+---
+
+## Day 3 Update — HR Rubric Evaluation (Rule-Based)
+
+### Backend
+- Added rule-based HR evaluator: `backend/evaluator.py`
+- Updated `/api/interview/message`
+  - For HR round, response includes `evaluation` JSON:
+    - score (0–10)
+    - rubric breakdown (clarity, structure, relevance, impact)
+    - strengths
+    - improvements
+    - ideal_answer
+
+### Frontend
+- Added evaluation panel UI on `/interview`
+- After user sends answer, UI renders:
+  - score + rubric breakdown
+  - strengths list
+  - improvements list
+  - ideal answer text
+
