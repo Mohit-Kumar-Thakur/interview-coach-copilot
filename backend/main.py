@@ -4,6 +4,16 @@ from pydantic import BaseModel
 from uuid import uuid4
 from typing import Dict, List, Literal
 from evaluator import evaluate_hr_answer
+from db import Base, engine
+from models import InterviewSession, Message
+from sqlalchemy.orm import Session
+from db import SessionLocal
+from fastapi import Depends
+
+
+
+Base.metadata.create_all(bind=engine)
+
 
 
 app = FastAPI(title="Interview Coach Copilot API")
@@ -64,6 +74,14 @@ class EvaluateRequest(BaseModel):
 def health():
     return {"status": "ok"}
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 
 def get_first_question(round_type: str) -> str:
     if round_type == "HR":
@@ -97,19 +115,22 @@ def generate_followup(round_type: str, user_message: str, q_index: int) -> str:
 
 
 @app.post("/api/interview/start")
-def start_interview(payload: StartInterviewRequest):
+def start_interview(payload: StartInterviewRequest, db: Session = Depends(get_db)):
     session_id = f"session_{uuid4().hex[:8]}"
-
     first_question = get_first_question(payload.round)
 
-    SESSIONS[session_id] = {
-        "round": payload.round,
-        "difficulty": payload.difficulty,
-        "messages": [
-            {"role": "assistant", "content": first_question}
-        ],
-        "current_question_index": 0,
-    }
+    # 1) create session row
+    db_session = InterviewSession(
+        id=session_id,
+        round=payload.round,
+        difficulty=payload.difficulty
+    )
+    db.add(db_session)
+
+    # 2) store assistant first message
+    db.add(Message(session_id=session_id, role="assistant", content=first_question))
+
+    db.commit()
 
     return {
         "session_id": session_id,
@@ -119,49 +140,45 @@ def start_interview(payload: StartInterviewRequest):
     }
 
 
-@app.post("/api/interview/message")
-def interview_message(payload: MessageRequest):
-    session = SESSIONS.get(payload.session_id)
 
-    if not session:
+@app.post("/api/interview/message")
+def interview_message(payload: MessageRequest, db: Session = Depends(get_db)):
+    db_session = db.query(InterviewSession).filter(InterviewSession.id == payload.session_id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Invalid session_id. Start interview again.")
 
-    # Find the latest assistant question (last assistant message)
-    last_assistant_question = None
-    for m in reversed(session["messages"]):
-        if m["role"] == "assistant":
-            last_assistant_question = m["content"]
-            break
+    # Find last assistant message (question)
+    last_assistant = (
+        db.query(Message)
+        .filter(Message.session_id == payload.session_id, Message.role == "assistant")
+        .order_by(Message.id.desc())
+        .first()
+    )
+    last_question = last_assistant.content if last_assistant else "Tell me about yourself."
 
-    if not last_assistant_question:
-        last_assistant_question = "Tell me about yourself."
+    # store user message
+    db.add(Message(session_id=payload.session_id, role="user", content=payload.message))
 
-    # Add user message
-    session["messages"].append({"role": "user", "content": payload.message})
+    # follow-up
+    round_type = db_session.round
+    reply = generate_followup(round_type, payload.message, 0)
 
-    # Generate interviewer follow-up reply
-    round_type = session["round"]
-    q_index = session["current_question_index"]
-    reply = generate_followup(round_type, payload.message, q_index)
+    # store assistant reply
+    db.add(Message(session_id=payload.session_id, role="assistant", content=reply))
 
-    # Add assistant reply
-    session["messages"].append({"role": "assistant", "content": reply})
+    db.commit()
 
-    # Update question index
-    session["current_question_index"] = min(q_index + 1, 999)
-
+    # evaluation only HR
     response = {
         "session_id": payload.session_id,
         "reply": reply,
-        "messages": session["messages"],
     }
 
-    # Attach evaluation ONLY for HR (Day 3)
     if round_type == "HR":
-        evaluation = evaluate_hr_answer(last_assistant_question, payload.message)
-        response["evaluation"] = evaluation
+        response["evaluation"] = evaluate_hr_answer(last_question, payload.message)
 
     return response
+
 
 
 @app.post("/api/evaluate")
@@ -170,3 +187,44 @@ def evaluate(payload: EvaluateRequest):
         return {"note": "Only HR evaluation implemented on Day 3"}
 
     return evaluate_hr_answer(payload.question, payload.answer)
+
+@app.get("/api/sessions")
+def list_sessions(db: Session = Depends(get_db)):
+    sessions = (
+        db.query(InterviewSession)
+        .order_by(InterviewSession.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "session_id": s.id,
+            "round": s.round,
+            "difficulty": s.difficulty,
+            "created_at": s.created_at,
+        }
+        for s in sessions
+    ]
+
+
+@app.get("/api/sessions/{session_id}")
+def get_session_messages(session_id: str, db: Session = Depends(get_db)):
+    db_session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    msgs = (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.id.asc())
+        .all()
+    )
+
+    return {
+        "session_id": db_session.id,
+        "round": db_session.round,
+        "difficulty": db_session.difficulty,
+        "created_at": db_session.created_at,
+        "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in msgs],
+    }
+

@@ -112,3 +112,24 @@ Response:
   - improvements list
   - ideal answer text
 
+---
+
+## Day 4 Update — PostgreSQL Persistence + Session History
+
+### Backend
+- Integrated PostgreSQL using SQLAlchemy
+- Added DB config in `db.py` with `.env` based DATABASE_URL
+- Added models:
+  - `sessions` table (InterviewSession)
+  - `messages` table (Message)
+- Updated APIs to persist data:
+  - POST `/api/interview/start` → creates session + first assistant message
+  - POST `/api/interview/message` → stores user message + assistant reply
+- Added history APIs:
+  - GET `/api/sessions` → list sessions (latest first)
+  - GET `/api/sessions/{session_id}` → fetch session + messages
+
+### Frontend
+- Dashboard upgraded with session history:
+  - lists past sessions
+  - clicking session loads full message transcript
