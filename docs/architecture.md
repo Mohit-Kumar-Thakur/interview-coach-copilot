@@ -133,3 +133,92 @@ Response:
 - Dashboard upgraded with session history:
   - lists past sessions
   - clicking session loads full message transcript
+
+
+## Day 5 Updates (JWT Auth + User-Owned Sessions)
+
+### Authentication (JWT)
+
+**Flow**
+1. User registers → `POST /api/auth/register`
+2. User logs in → `POST /api/auth/login`
+3. Backend returns `access_token` (JWT)
+4. Frontend stores token in `localStorage`
+5. Frontend sends token for protected APIs:
+   `Authorization: Bearer <token>`
+
+**JWT Payload**
+- `user_id`
+- `email`
+- `exp`
+
+
+### Authorization Rules (Protected APIs)
+
+These endpoints require JWT:
+- `POST /api/interview/start`
+- `POST /api/interview/message`
+- `GET /api/sessions`
+- `GET /api/sessions/{session_id}`
+
+Backend auth dependency:
+- `get_current_user()` reads `Authorization: Bearer <token>`
+- Decodes JWT → extracts `user_id`
+- Finds user in DB → returns `User`
+- Throws 401 on invalid/expired token
+
+
+### User-Owned Sessions
+
+**Rule**
+A user can only see their own sessions + messages.
+
+**Implementation**
+- `InterviewSession.user_id = current_user.id`
+- Fetch sessions filtered by current user:
+  - `GET /api/sessions` returns only sessions where `user_id == current_user.id`
+- Fetch session messages restricted:
+  - `GET /api/sessions/{session_id}` checks ownership before returning messages
+
+
+### Database Schema (PostgreSQL)
+
+**users**
+- `id` (PK)
+- `email` (UNIQUE)
+- `hashed_password`
+- `created_at`
+
+**sessions**
+- `id` (PK)  *(session_id)*
+- `user_id` (FK → users.id)
+- `round`
+- `difficulty`
+- `created_at`
+
+**messages**
+- `id` (PK)
+- `session_id` (FK → sessions.id)
+- `role`  *(user / assistant)*
+- `content`
+- `created_at`
+
+
+### Frontend Auth Integration
+
+**Token storage helper**
+File: `frontend/lib/auth.ts`
+- `setToken(token)`
+- `getToken()`
+- `logout()`
+- `authHeader()` → returns `{ Authorization: "Bearer <token>" }`
+
+**Protected pages**
+- Dashboard redirects to `/login` if token missing:
+  - `useEffect(() => { if (!getToken()) router.push("/login"); }, [])`
+
+**Authenticated API requests**
+Frontend fetch calls include auth header:
+- `headers: { ...authHeader() }`
+- or with JSON:
+  `headers: { "Content-Type": "application/json", ...authHeader() }`
