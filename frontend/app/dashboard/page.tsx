@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { authHeader, getToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 type SessionItem = {
   session_id: string;
@@ -26,19 +28,38 @@ type SessionDetail = {
 
 export default function DashboardPage() {
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
+  const router = useRouter();
+
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
 
+  useEffect(() => {
+    if (!getToken()) router.push("/login");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchSessions = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${backendBase}/api/sessions`, { cache: "no-store" });
+
+      const res = await fetch(`${backendBase}/api/sessions`, {
+        method: "GET",
+        headers: {
+          ...authHeader(),
+        },
+        cache: "no-store",
+      });
+
       const data = await res.json();
-      setSessions(data);
-    } catch {
+
+      // backend may return { sessions: [...] }
+      const list = Array.isArray(data) ? data : data.sessions;
+      setSessions(list ?? []);
+    } catch (e) {
+      console.error(e);
       alert("Failed to load sessions. Check backend running on :8000");
     } finally {
       setLoading(false);
@@ -49,10 +70,22 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setSelectedSessionId(sessionId);
-      const res = await fetch(`${backendBase}/api/sessions/${sessionId}`, { cache: "no-store" });
+
+      const res = await fetch(`${backendBase}/api/sessions/${sessionId}`, {
+        method: "GET",
+        headers: {
+          ...authHeader(),
+        },
+        cache: "no-store",
+      });
+
       const data = await res.json();
-      setDetail(data);
-    } catch {
+
+      // safety: backend may return { session: {...} }
+      const sessionDetail = data.session ?? data;
+      setDetail(sessionDetail);
+    } catch (e) {
+      console.error(e);
       alert("Failed to load session detail.");
     } finally {
       setLoading(false);
@@ -138,7 +171,8 @@ export default function DashboardPage() {
                   <span className="font-medium">Round:</span> {detail.round}
                 </div>
                 <div>
-                  <span className="font-medium">Difficulty:</span> {detail.difficulty}
+                  <span className="font-medium">Difficulty:</span>{" "}
+                  {detail.difficulty}
                 </div>
               </div>
 

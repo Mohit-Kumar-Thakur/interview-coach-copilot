@@ -2,6 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { authHeader } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+
 
 type RoundType = "HR" | "DSA" | "SD";
 
@@ -56,7 +62,7 @@ export default function InterviewPage() {
 
       const res = await fetch(`${backendBase}/api/interview/start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ round, difficulty }),
       });
 
@@ -89,11 +95,18 @@ export default function InterviewPage() {
 
       const res = await fetch(`${backendBase}/api/interview/message`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ session_id: sessionId, message: userText }),
       });
 
       const data = await res.json();
+      const router = useRouter();
+
+      useEffect(() => {
+  if (!getToken()) router.push("/login");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 
       // Add assistant reply
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);

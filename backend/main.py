@@ -9,7 +9,12 @@ from models import InterviewSession, Message
 from sqlalchemy.orm import Session
 from db import SessionLocal
 from fastapi import Depends
+from jose import jwt, JWTError
 
+from models import User, InterviewSession, Message
+from auth import hash_password, verify_password, create_access_token,SECRET_KEY, ALGORITHM
+
+from fastapi import Header
 
 
 Base.metadata.create_all(bind=engine)
@@ -69,6 +74,51 @@ class EvaluateRequest(BaseModel):
     answer: str
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_current_user(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """
+    Reads JWT from Authorization header: 'Bearer <token>'
+    """
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid Authorization format")
+
+    token = parts[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int | None = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
+
+
+
+
 
 @app.get("/health")
 def health():
@@ -80,6 +130,8 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
 
 
 
@@ -115,13 +167,18 @@ def generate_followup(round_type: str, user_message: str, q_index: int) -> str:
 
 
 @app.post("/api/interview/start")
-def start_interview(payload: StartInterviewRequest, db: Session = Depends(get_db)):
+def start_interview(
+    payload: StartInterviewRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     session_id = f"session_{uuid4().hex[:8]}"
     first_question = get_first_question(payload.round)
 
     # 1) create session row
     db_session = InterviewSession(
         id=session_id,
+        user_id=user.id,
         round=payload.round,
         difficulty=payload.difficulty
     )
@@ -142,10 +199,17 @@ def start_interview(payload: StartInterviewRequest, db: Session = Depends(get_db
 
 
 @app.post("/api/interview/message")
-def interview_message(payload: MessageRequest, db: Session = Depends(get_db)):
-    db_session = db.query(InterviewSession).filter(InterviewSession.id == payload.session_id).first()
-    if not db_session:
-        raise HTTPException(status_code=404, detail="Invalid session_id. Start interview again.")
+def interview_message(
+    payload: MessageRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    db_session = (
+    db.query(InterviewSession)
+    .filter(InterviewSession.id == payload.session_id, InterviewSession.user_id == user.id)
+    .first()
+)
+
 
     # Find last assistant message (question)
     last_assistant = (
@@ -189,12 +253,17 @@ def evaluate(payload: EvaluateRequest):
     return evaluate_hr_answer(payload.question, payload.answer)
 
 @app.get("/api/sessions")
-def list_sessions(db: Session = Depends(get_db)):
+def list_sessions(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     sessions = (
-        db.query(InterviewSession)
-        .order_by(InterviewSession.created_at.desc())
-        .all()
+    db.query(InterviewSession)
+    .filter(InterviewSession.user_id == user.id)
+    .order_by(InterviewSession.created_at.desc())
+    .all()
     )
+
 
     return [
         {
@@ -208,8 +277,17 @@ def list_sessions(db: Session = Depends(get_db)):
 
 
 @app.get("/api/sessions/{session_id}")
-def get_session_messages(session_id: str, db: Session = Depends(get_db)):
-    db_session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+def get_session_messages(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    db_session = (
+    db.query(InterviewSession)
+    .filter(InterviewSession.id == session_id, InterviewSession.user_id == user.id)
+    .first()
+)
+
     if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -227,4 +305,30 @@ def get_session_messages(session_id: str, db: Session = Depends(get_db)):
         "created_at": db_session.created_at,
         "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in msgs],
     }
+    
+@app.post("/api/auth/register")
+def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(email=payload.email, hashed_password=hash_password(payload.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "registered", "user_id": user.id}
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token({"user_id": user.id, "email": user.email})
+    return {"access_token": token, "token_type": "bearer"}
+
 
