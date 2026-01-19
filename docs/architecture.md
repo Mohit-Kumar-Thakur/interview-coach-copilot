@@ -222,3 +222,56 @@ Frontend fetch calls include auth header:
 - `headers: { ...authHeader() }`
 - or with JSON:
   `headers: { "Content-Type": "application/json", ...authHeader() }`
+
+
+## Day 6 — Auth UX + Safe Fetch + Token Storage Debugging
+
+### What was implemented
+- Implemented **JWT authentication flow** end-to-end:
+  - `/api/auth/register` → create user
+  - `/api/auth/login` → returns `access_token`
+  - Protected endpoints require: `Authorization: Bearer <token>`
+- Connected frontend to backend using **authenticated requests**.
+- Implemented **token persistence** using `localStorage`:
+  - `setToken(token)`
+  - `getToken()`
+  - `logout()` clears token
+  - `authHeader()` returns `{ Authorization: "Bearer <token>" }`
+
+### Frontend changes
+- Added `/login` page:
+  - Stores token after successful login
+  - Redirects to `/dashboard`
+- Added `/register` page:
+  - Creates user using backend register endpoint
+- Added **route protection**:
+  - Redirect unauthenticated users to `/login` (useEffect guard)
+- Updated `/dashboard`:
+  - Shows logged-in user email from `/api/me`
+  - Added Logout button
+- Replaced raw `fetch()` calls with `safeFetch()` in Dashboard + Interview:
+  - Centralizes auth + error handling
+  - Handles 401 → redirect to login
+
+### Backend changes
+- Added/used `get_current_user()` dependency:
+  - Reads JWT from Authorization header
+  - Validates token and fetches user from DB
+- Linked interview sessions to `user_id`
+  - Sessions/messages are user-owned
+  - `/api/sessions` returns only current user sessions
+  - `/api/sessions/{session_id}` returns only current user session detail
+
+### Issues solved today
+- Fixed missing Authorization header errors
+- Fixed invalid token formatting issues
+- Fixed dashboard `sessions.map is not a function` by normalizing API response
+- Fixed TypeScript headers merge typing issue
+- Verified PostgreSQL persistence (users, sessions, messages)
+
+### Current status
+- Login/Register working
+- Token stored and reused correctly
+- Dashboard loads user-owned sessions
+- Interview endpoints protected and usable with JWT
+- PostgreSQL storing everything correctly

@@ -8,7 +8,14 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+
+    full_name = Column(String, nullable=True)
+    college = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    graduation_year = Column(Integer, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 
 class InterviewSession(Base):

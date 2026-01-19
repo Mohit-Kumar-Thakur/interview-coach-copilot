@@ -73,6 +73,13 @@ class EvaluateRequest(BaseModel):
     question: str
     answer: str
 
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = None
+    college: str | None = None
+    department: str | None = None
+    graduation_year: int | None = None
+
+
 
 class RegisterRequest(BaseModel):
     email: str
@@ -330,5 +337,56 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     token = create_access_token({"user_id": user.id, "email": user.email})
     return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/api/me")
+def me(user: User = Depends(get_current_user)):
+    return {"id": user.id, "email": user.email}
+
+
+@app.get("/api/users/me")
+def get_me(user: User = Depends(get_current_user)):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "college": user.college,
+        "department": user.department,
+        "graduation_year": user.graduation_year,
+        "created_at": user.created_at,
+    }
+
+
+@app.put("/api/users/me")
+def update_me(
+    payload: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # only update fields that are provided
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.college is not None:
+        user.college = payload.college
+    if payload.department is not None:
+        user.department = payload.department
+    if payload.graduation_year is not None:
+        user.graduation_year = payload.graduation_year
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "profile_updated",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "college": user.college,
+            "department": user.department,
+            "graduation_year": user.graduation_year,
+        },
+    }
+
 
 

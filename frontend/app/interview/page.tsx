@@ -1,13 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { authHeader } from "@/lib/auth";
 import { getToken } from "@/lib/auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-
-
+import { safeFetch } from "@/lib/api";
 
 type RoundType = "HR" | "DSA" | "SD";
 
@@ -30,6 +27,8 @@ type Evaluation = {
 };
 
 export default function InterviewPage() {
+  const router = useRouter();
+
   const [round, setRound] = useState<RoundType>("HR");
   const [difficulty] = useState("medium");
 
@@ -41,6 +40,12 @@ export default function InterviewPage() {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
+
+  // Route protection
+  useEffect(() => {
+    if (!getToken()) router.push("/login");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const testBackend = async () => {
     try {
@@ -60,9 +65,9 @@ export default function InterviewPage() {
       setSessionId(null);
       setEvaluation(null);
 
-      const res = await fetch(`${backendBase}/api/interview/start`, {
+      const res = await safeFetch(`${backendBase}/api/interview/start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ round, difficulty }),
       });
 
@@ -70,7 +75,11 @@ export default function InterviewPage() {
 
       setSessionId(data.session_id);
       setMessages([{ role: "assistant", content: data.first_question }]);
-    } catch {
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
+      }
       alert("Failed to start interview. Check backend running on :8000");
     } finally {
       setLoading(false);
@@ -93,20 +102,13 @@ export default function InterviewPage() {
     try {
       setLoading(true);
 
-      const res = await fetch(`${backendBase}/api/interview/message`, {
+      const res = await safeFetch(`${backendBase}/api/interview/message`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: userText }),
       });
 
       const data = await res.json();
-      const router = useRouter();
-
-      useEffect(() => {
-  if (!getToken()) router.push("/login");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
 
       // Add assistant reply
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
@@ -115,7 +117,11 @@ export default function InterviewPage() {
       if (data.evaluation) {
         setEvaluation(data.evaluation);
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
+      }
       alert("Failed to send message. Check backend + CORS.");
     } finally {
       setLoading(false);

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { authHeader, getToken } from "@/lib/auth";
+import { getToken, logout } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { safeFetch } from "@/lib/api";
 
 type SessionItem = {
   session_id: string;
@@ -36,31 +37,38 @@ export default function DashboardPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
 
+  const [me, setMe] = useState<{ id: number; email: string } | null>(null);
+
+  // Route protection
   useEffect(() => {
     if (!getToken()) router.push("/login");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchMe = async () => {
+    try {
+      const res = await safeFetch(`${backendBase}/api/me`);
+      const data = await res.json();
+      setMe(data);
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") router.push("/login");
+    }
+  };
+
   const fetchSessions = async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(`${backendBase}/api/sessions`, {
-        method: "GET",
-        headers: {
-          ...authHeader(),
-        },
-        cache: "no-store",
-      });
-
+      const res = await safeFetch(`${backendBase}/api/sessions`);
       const data = await res.json();
 
-      // backend may return { sessions: [...] }
-      const list = Array.isArray(data) ? data : data.sessions;
-      setSessions(list ?? []);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to load sessions. Check backend running on :8000");
+      setSessions(Array.isArray(data) ? data : data.sessions ?? []);
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
+      }
+      alert("Failed to load sessions.");
     } finally {
       setLoading(false);
     }
@@ -71,28 +79,24 @@ export default function DashboardPage() {
       setLoading(true);
       setSelectedSessionId(sessionId);
 
-      const res = await fetch(`${backendBase}/api/sessions/${sessionId}`, {
-        method: "GET",
-        headers: {
-          ...authHeader(),
-        },
-        cache: "no-store",
-      });
-
+      const res = await safeFetch(`${backendBase}/api/sessions/${sessionId}`);
       const data = await res.json();
 
-      // safety: backend may return { session: {...} }
-      const sessionDetail = data.session ?? data;
-      setDetail(sessionDetail);
-    } catch (e) {
-      console.error(e);
+      setDetail(data);
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
+      }
       alert("Failed to load session detail.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Initial load
   useEffect(() => {
+    fetchMe();
     fetchSessions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -102,13 +106,30 @@ export default function DashboardPage() {
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <div className="flex gap-3">
+
+        <div className="flex items-center gap-3">
+          {me?.email && (
+            <span className="text-sm text-gray-700 border px-3 py-1 rounded-lg bg-white">
+              {me.email}
+            </span>
+          )}
+
           <Link className="underline text-sm" href="/">
             Home
           </Link>
           <Link className="underline text-sm" href="/interview">
             Interview
           </Link>
+
+          <button
+            onClick={() => {
+              logout();
+              router.push("/login");
+            }}
+            className="text-sm border rounded-lg px-3 py-1"
+          >
+            Logout
+          </button>
         </div>
       </div>
 
@@ -165,7 +186,8 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <div className="text-sm text-gray-700">
                 <div>
-                  <span className="font-medium">Session:</span> {detail.session_id}
+                  <span className="font-medium">Session:</span>{" "}
+                  {detail.session_id}
                 </div>
                 <div>
                   <span className="font-medium">Round:</span> {detail.round}
