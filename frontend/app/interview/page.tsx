@@ -28,6 +28,7 @@ type Evaluation = {
 
 export default function InterviewPage() {
   const router = useRouter();
+  const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
 
   const [round, setRound] = useState<RoundType>("HR");
   const [difficulty] = useState("medium");
@@ -39,13 +40,17 @@ export default function InterviewPage() {
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
-  const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
-
   // Route protection
   useEffect(() => {
     if (!getToken()) router.push("/login");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const clearChat = () => {
+    setMessages([]);
+    setEvaluation(null);
+    setInput("");
+  };
 
   const testBackend = async () => {
     try {
@@ -80,7 +85,7 @@ export default function InterviewPage() {
         router.push("/login");
         return;
       }
-      alert("Failed to start interview. Check backend running on :8000");
+      alert("Failed to start interview.");
     } finally {
       setLoading(false);
     }
@@ -96,7 +101,7 @@ export default function InterviewPage() {
     const userText = input.trim();
     setInput("");
 
-    // Add user message immediately
+    // optimistic UI update
     setMessages((prev) => [...prev, { role: "user", content: userText }]);
 
     try {
@@ -110,10 +115,11 @@ export default function InterviewPage() {
 
       const data = await res.json();
 
-      // Add assistant reply
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.reply },
+      ]);
 
-      // Store evaluation if present (HR only)
       if (data.evaluation) {
         setEvaluation(data.evaluation);
       }
@@ -122,17 +128,21 @@ export default function InterviewPage() {
         router.push("/login");
         return;
       }
-      alert("Failed to send message. Check backend + CORS.");
+      alert("Failed to send message.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
+    <main className="min-h-screen p-6">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">Interview Session</h1>
+        <div>
+          <h1 className="app-title">Interview Session</h1>
+          <p className="app-subtitle">Practice HR / DSA / System Design rounds</p>
+        </div>
+
         <div className="flex gap-3">
           <Link className="underline text-sm" href="/">
             Home
@@ -143,23 +153,23 @@ export default function InterviewPage() {
         </div>
       </div>
 
+      {/* 3-column layout */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Left panel */}
-        <section className="col-span-12 md:col-span-3 bg-white rounded-xl shadow p-4">
-          <h2 className="font-semibold mb-3">Session Info</h2>
+        {/* LEFT: controls */}
+        <section className="col-span-12 lg:col-span-3 app-card p-4">
+          <h2 className="font-semibold mb-3">Session Controls</h2>
 
           <div className="space-y-3 text-sm">
             <div>
               <label htmlFor="round" className="font-medium block mb-1">
                 Round
               </label>
+
               <select
                 id="round"
-                name="round"
-                aria-label="Round"
                 value={round}
                 onChange={(e) => setRound(e.target.value as RoundType)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="input"
                 disabled={loading}
               >
                 <option value="HR">HR</option>
@@ -169,154 +179,206 @@ export default function InterviewPage() {
             </div>
 
             <div>
-              <span className="font-medium">Difficulty:</span> {difficulty}
+              <span className="font-medium">Difficulty:</span>{" "}
+              <span style={{ color: "rgb(var(--subtext))" }}>{difficulty}</span>
             </div>
 
             <div className="text-xs break-words">
               <span className="font-medium">Session ID:</span>{" "}
-              {sessionId ? sessionId : "--"}
+              <span style={{ color: "rgb(var(--subtext))" }}>
+                {sessionId ? sessionId : "--"}
+              </span>
+            </div>
+
+            <div className="text-xs break-words">
+              <span className="font-medium">Health:</span>{" "}
+              <span style={{ color: "rgb(var(--subtext))" }}>{healthStatus}</span>
             </div>
           </div>
 
-          <button
-            onClick={startInterview}
-            disabled={loading}
-            className="mt-4 w-full rounded-lg bg-black text-white py-2 text-sm disabled:opacity-60"
-          >
-            {loading ? "Starting..." : "Start Interview"}
-          </button>
+          {/* Buttons */}
+          <div className="mt-4 grid grid-cols-1 gap-2">
+            <button
+              onClick={startInterview}
+              disabled={loading}
+              className="btn-primary w-full disabled:opacity-60"
+            >
+              {loading ? "Starting..." : "New Interview"}
+            </button>
+
+            <button
+              onClick={clearChat}
+              disabled={loading}
+              className="btn-outline w-full disabled:opacity-60"
+            >
+              Clear Chat (UI)
+            </button>
+          </div>
 
           <button
             onClick={testBackend}
-            className="mt-3 w-full rounded-lg border py-2 text-sm"
+            className="btn-outline mt-3 w-full disabled:opacity-60"
+            disabled={loading}
           >
             Test Backend
           </button>
-
-          <p className="mt-2 text-xs text-gray-700 break-words">
-            Health: {healthStatus}
-          </p>
         </section>
 
-        {/* Chat + Evaluation panel */}
-        <section className="col-span-12 md:col-span-9 bg-white rounded-xl shadow p-4 h-[75vh]">
-          <div className="grid grid-cols-12 gap-4 h-full">
-            {/* Chat side */}
-            <div className="col-span-12 lg:col-span-8 flex flex-col h-full">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                {messages.length === 0 ? (
-                  <div className="text-sm text-gray-500">
-                    Click <b>Start Interview</b> to begin.
-                  </div>
-                ) : (
-                  messages.map((m, idx) => (
-                    <div
-                      key={idx}
-                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                        m.role === "user"
-                          ? "ml-auto bg-black text-white"
-                          : "bg-gray-100 text-gray-900"
-                      }`}
-                    >
-                      {m.content}
-                    </div>
-                  ))
-                )}
-              </div>
+        {/* MIDDLE: chat */}
+        <section className="col-span-12 lg:col-span-6 app-card p-4 flex flex-col h-[75vh]">
+          <h2 className="font-semibold mb-3">Chat</h2>
 
-              {/* Input */}
-              <div className="mt-4 flex gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer..."
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                  disabled={loading}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") sendMessage();
-                  }}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={loading}
-                  className="rounded-lg bg-black text-white px-4 py-2 text-sm disabled:opacity-60"
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            {messages.length === 0 ? (
+              <div className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
+                Click <b>New Interview</b> to begin.
+              </div>
+            ) : (
+              messages.map((m, idx) => (
+                <div
+                  key={idx}
+                  className="max-w-[85%] rounded-xl px-3 py-2 text-sm border"
+                  style={
+                    m.role === "user"
+                      ? {
+                          marginLeft: "auto",
+                          background: "rgb(var(--text))",
+                          color: "white",
+                          borderColor: "rgb(var(--text))",
+                        }
+                      : {
+                          background: "rgb(var(--muted))",
+                          color: "rgb(var(--text))",
+                          borderColor: "rgb(var(--border))",
+                        }
+                  }
                 >
-                  {loading ? "..." : "Send"}
-                </button>
+                  {m.content}
+                </div>
+              ))
+            )}
+
+            {loading && (
+              <div className="text-xs" style={{ color: "rgb(var(--subtext))" }}>
+                Thinking...
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Evaluation side */}
-            <div className="col-span-12 lg:col-span-4 border rounded-xl p-4 bg-gray-50 overflow-y-auto text-gray-900">
-              <h3 className="font-semibold mb-3">Evaluation</h3>
+          {/* Input */}
+          <div className="mt-4 flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your answer..."
+              className="input flex-1"
+              disabled={loading}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+              }}
+            />
 
-              {!evaluation ? (
-                <p className="text-sm text-gray-700">
-                  No evaluation yet. Send an HR answer to see scoring.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {/* Score */}
-                  <div className="bg-white border rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Score</span>
-                      <span className="font-bold text-lg">
-                        {evaluation.score}/10
-                      </span>
-                    </div>
+            <button
+              onClick={sendMessage}
+              disabled={loading}
+              className="btn-primary disabled:opacity-60"
+            >
+              {loading ? "..." : "Send"}
+            </button>
+          </div>
+        </section>
 
-                    <div className="mt-3 text-sm space-y-1">
-                      <div className="flex justify-between">
-                        <span>Clarity</span>
-                        <span>{evaluation.rubric.clarity}/10</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Structure</span>
-                        <span>{evaluation.rubric.structure}/10</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Relevance</span>
-                        <span>{evaluation.rubric.relevance}/10</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Impact</span>
-                        <span>{evaluation.rubric.impact}/10</span>
-                      </div>
-                    </div>
+        {/* RIGHT: evaluation */}
+        <section className="col-span-12 lg:col-span-3 app-card p-4 h-[75vh] overflow-y-auto">
+          <h2 className="font-semibold mb-3">Evaluation</h2>
+
+          {!evaluation ? (
+            <p className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
+              No evaluation yet. Send an HR answer to see scoring.
+            </p>
+          ) : (
+            <div className="space-y-4 text-sm">
+              {/* Score */}
+              <div
+                className="border rounded-2xl p-4"
+                style={{
+                  background: "rgb(var(--muted))",
+                  borderColor: "rgb(var(--border))",
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Score</span>
+                  <span className="font-bold text-lg">{evaluation.score}/10</span>
+                </div>
+
+                <div className="mt-3 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>Clarity</span>
+                    <span>{evaluation.rubric.clarity}/10</span>
                   </div>
-
-                  {/* Strengths */}
-                  <div className="bg-white border rounded-xl p-4">
-                    <p className="font-semibold mb-2">Strengths</p>
-                    <ul className="list-disc pl-5 text-sm space-y-1 text-gray-800">
-                      {evaluation.strengths.map((s, i) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
+                  <div className="flex justify-between">
+                    <span>Structure</span>
+                    <span>{evaluation.rubric.structure}/10</span>
                   </div>
-
-                  {/* Improvements */}
-                  <div className="bg-white border rounded-xl p-4">
-                    <p className="font-semibold mb-2">Improvements</p>
-                    <ul className="list-disc pl-5 text-sm space-y-1 text-gray-800">
-                      {evaluation.improvements.map((s, i) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
+                  <div className="flex justify-between">
+                    <span>Relevance</span>
+                    <span>{evaluation.rubric.relevance}/10</span>
                   </div>
-
-                  {/* Ideal Answer */}
-                  <div className="bg-white border rounded-xl p-4">
-                    <p className="font-semibold mb-2">Ideal Answer</p>
-                    <p className="text-sm text-gray-800">
-                      {evaluation.ideal_answer}
-                    </p>
+                  <div className="flex justify-between">
+                    <span>Impact</span>
+                    <span>{evaluation.rubric.impact}/10</span>
                   </div>
                 </div>
-              )}
+              </div>
+
+              {/* Strengths */}
+              <div
+                className="border rounded-2xl p-4"
+                style={{
+                  background: "rgb(var(--card))",
+                  borderColor: "rgb(var(--border))",
+                }}
+              >
+                <p className="font-semibold mb-2">Strengths</p>
+                <ul className="list-disc pl-5 space-y-1 text-xs">
+                  {evaluation.strengths.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Improvements */}
+              <div
+                className="border rounded-2xl p-4"
+                style={{
+                  background: "rgb(var(--card))",
+                  borderColor: "rgb(var(--border))",
+                }}
+              >
+                <p className="font-semibold mb-2">Improvements</p>
+                <ul className="list-disc pl-5 space-y-1 text-xs">
+                  {evaluation.improvements.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Ideal Answer */}
+              <div
+                className="border rounded-2xl p-4"
+                style={{
+                  background: "rgb(var(--card))",
+                  borderColor: "rgb(var(--border))",
+                }}
+              >
+                <p className="font-semibold mb-2">Ideal Answer</p>
+                <p className="text-xs whitespace-pre-wrap">
+                  {evaluation.ideal_answer}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </section>
       </div>
     </main>

@@ -275,3 +275,29 @@ Frontend fetch calls include auth header:
 - Dashboard loads user-owned sessions
 - Interview endpoints protected and usable with JWT
 - PostgreSQL storing everything correctly
+
+
+## Day 7 — UI Theme + Design System + UX polish
+
+### Goal
+Make the frontend UI consistent and professional by introducing a shared color palette + reusable UI utility classes, then refactor pages to use them.
+
+---
+
+### What was implemented
+
+#### 1) Global Theme Palette (CSS Variables)
+Added a **single source of truth theme palette** in `frontend/app/globals.css` using CSS variables like:
+- `--bg`, `--card`, `--muted`, `--border`
+- `--text`, `--subtext`
+- `--primary`, `--primary-hover`, `--ring`
+- `--danger`
+
+This enables consistent colors across all pages without hardcoding Tailwind colors everywhere.
+
+---
+
+#### 2) Reusable UI Component Classes (Tailwind @layer components)
+Created reusable classes in `globals.css` under:
+```css
+@layer components { ... }

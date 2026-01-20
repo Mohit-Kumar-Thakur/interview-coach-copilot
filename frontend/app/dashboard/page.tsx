@@ -102,22 +102,21 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
+    <main className="min-h-screen p-6">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div>
+          <h1 className="app-title">Dashboard</h1>
+          <p className="app-subtitle">View interview sessions and messages</p>
+        </div>
 
         <div className="flex items-center gap-3">
-          {me?.email && (
-            <span className="text-sm text-gray-700 border px-3 py-1 rounded-lg bg-white">
-              {me.email}
-            </span>
-          )}
+          {me?.email && <span className="badge">{me.email}</span>}
 
-          <Link className="underline text-sm" href="/">
+          <Link className="text-sm underline" href="/">
             Home
           </Link>
-          <Link className="underline text-sm" href="/interview">
+          <Link className="text-sm underline" href="/interview">
             Interview
           </Link>
 
@@ -126,7 +125,8 @@ export default function DashboardPage() {
               logout();
               router.push("/login");
             }}
-            className="text-sm border rounded-lg px-3 py-1"
+            className="btn-outline"
+            disabled={loading}
           >
             Logout
           </button>
@@ -135,56 +135,71 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-12 gap-6">
         {/* Sessions list */}
-        <section className="col-span-12 md:col-span-4 bg-white rounded-xl shadow p-4">
+        <section className="col-span-12 md:col-span-4 app-card p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold">Session History</h2>
+
             <button
               onClick={fetchSessions}
-              className="text-sm border rounded-lg px-3 py-1"
+              className="btn-outline"
               disabled={loading}
             >
-              Refresh
+              {loading ? "Loading..." : "Refresh"}
             </button>
           </div>
 
           {sessions.length === 0 ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
               No sessions yet. Start an interview first.
             </p>
           ) : (
             <div className="space-y-2">
-              {sessions.map((s) => (
-                <button
-                  key={s.session_id}
-                  onClick={() => fetchSessionDetail(s.session_id)}
-                  className={`w-full text-left border rounded-lg p-3 text-sm hover:bg-gray-50 ${
-                    selectedSessionId === s.session_id ? "border-black" : ""
-                  }`}
-                >
-                  <div className="font-medium">{s.round}</div>
-                  <div className="text-xs text-gray-600 break-words">
-                    {s.session_id}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {new Date(s.created_at).toLocaleString()}
-                  </div>
-                </button>
-              ))}
+              {sessions.map((s) => {
+                const active = selectedSessionId === s.session_id;
+
+                return (
+                  <button
+                    key={s.session_id}
+                    onClick={() => fetchSessionDetail(s.session_id)}
+                    className="w-full text-left rounded-xl p-3 text-sm transition border"
+                    style={{
+                      background: active ? "rgb(var(--muted))" : "rgb(var(--card))",
+                      borderColor: active
+                        ? "rgb(var(--primary))"
+                        : "rgb(var(--border))",
+                    }}
+                  >
+                    <div className="font-medium">{s.round}</div>
+                    <div
+                      className="text-xs break-words mt-1"
+                      style={{ color: "rgb(var(--subtext))" }}
+                    >
+                      {s.session_id}
+                    </div>
+                    <div
+                      className="text-xs mt-1"
+                      style={{ color: "rgb(var(--subtext))" }}
+                    >
+                      {new Date(s.created_at).toLocaleString()}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>
 
         {/* Session detail */}
-        <section className="col-span-12 md:col-span-8 bg-white rounded-xl shadow p-4">
+        <section className="col-span-12 md:col-span-8 app-card p-4">
           <h2 className="font-semibold mb-3">Session Detail</h2>
 
           {!detail ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
               Select a session from the left panel to view messages.
             </p>
           ) : (
             <div className="space-y-3">
-              <div className="text-sm text-gray-700">
+              <div className="text-sm">
                 <div>
                   <span className="font-medium">Session:</span>{" "}
                   {detail.session_id}
@@ -198,16 +213,32 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="border rounded-xl p-4 h-[60vh] overflow-y-auto bg-gray-50">
+              <div
+                className="border rounded-2xl p-4 h-[60vh] overflow-y-auto"
+                style={{
+                  background: "rgb(var(--muted))",
+                  borderColor: "rgb(var(--border))",
+                }}
+              >
                 <div className="space-y-3">
                   {detail.messages.map((m, idx) => (
                     <div
                       key={idx}
-                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      className="max-w-[80%] rounded-xl px-3 py-2 text-sm border"
+                      style={
                         m.role === "user"
-                          ? "ml-auto bg-black text-white"
-                          : "bg-white text-gray-900 border"
-                      }`}
+                          ? {
+                              marginLeft: "auto",
+                              background: "rgb(var(--text))",
+                              color: "white",
+                              borderColor: "rgb(var(--text))",
+                            }
+                          : {
+                              background: "rgb(var(--card))",
+                              color: "rgb(var(--text))",
+                              borderColor: "rgb(var(--border))",
+                            }
+                      }
                     >
                       {m.content}
                     </div>
