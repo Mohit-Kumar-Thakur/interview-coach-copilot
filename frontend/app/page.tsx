@@ -1,8 +1,9 @@
 import Link from "next/link";
+import AppShell from "@/components/AppShell";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <AppShell title="Home" subtitle="Start practicing interviews with session tracking">
       <div className="bg-white rounded-2xl shadow p-10 max-w-xl w-full">
         <h1 className="text-3xl font-bold">Interview Coach Copilot</h1>
         <p className="text-gray-600 mt-2">
@@ -25,6 +26,6 @@ export default function Home() {
           </Link>
         </div>
       </div>
-    </main>
+    </AppShell>
   );
 }

@@ -301,3 +301,69 @@ This enables consistent colors across all pages without hardcoding Tailwind colo
 Created reusable classes in `globals.css` under:
 ```css
 @layer components { ... }
+```
+
+
+## Day 8 — UI Shell + Persistent Interview State (Frontend)
+
+### Goal
+Introduce a reusable layout wrapper (AppShell) and persist Interview session state in the browser so users don’t lose chat on refresh/navigation.
+
+---
+
+### What was implemented
+
+#### 1) AppShell (Reusable Layout Wrapper)
+- Added a shared `AppShell` component to standardize:
+  - Page title + subtitle header
+  - Top navigation links
+  - Auth-based navigation controls
+- Fixed **Next.js hydration mismatch** by:
+  - Avoiding token/localStorage usage during first render
+  - Rendering auth UI only after client hydration (`useEffect`)
+
+**Component**
+- `frontend/components/AppShell.tsx`
+
+---
+
+#### 2) Persistent Interview State (LocalStorage)
+The Interview page now persists:
+- selected round (HR/DSA/SD)
+- current `sessionId`
+- messages chat history
+- evaluation object
+
+So refresh doesn’t reset user progress.
+
+**Storage keys**
+- `icc_round`
+- `icc_session_id`
+- `icc_messages`
+- `icc_evaluation`
+
+**Implemented in**
+- `frontend/app/interview/page.tsx`
+
+---
+
+#### 3) Clear Chat Button (UI Reset)
+Added a UI-only clear option:
+- clears messages
+- clears evaluation
+- clears input
+- updates persisted storage accordingly
+
+---
+
+### API impact
+No backend changes required.
+This was a frontend-only improvement focused on UX and stability.
+
+---
+
+### Result
+- Consistent UI layout across pages
+- No hydration errors
+- Interview chat persists across refresh
+- Clear Chat provides clean UX reset

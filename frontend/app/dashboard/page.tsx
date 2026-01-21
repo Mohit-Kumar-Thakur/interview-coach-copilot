@@ -5,6 +5,8 @@ import Link from "next/link";
 import { getToken, logout } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { safeFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
+
 
 type SessionItem = {
   session_id: string;
@@ -101,38 +103,11 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <main className="min-h-screen p-6">
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="app-title">Dashboard</h1>
-          <p className="app-subtitle">View interview sessions and messages</p>
-        </div>
 
-        <div className="flex items-center gap-3">
-          {me?.email && <span className="badge">{me.email}</span>}
+return (
+  <AppShell title="Dashboard" subtitle="Browse and review past interview sessions">
 
-          <Link className="text-sm underline" href="/">
-            Home
-          </Link>
-          <Link className="text-sm underline" href="/interview">
-            Interview
-          </Link>
-
-          <button
-            onClick={() => {
-              logout();
-              router.push("/login");
-            }}
-            className="btn-outline"
-            disabled={loading}
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-
+      
       <div className="grid grid-cols-12 gap-6">
         {/* Sessions list */}
         <section className="col-span-12 md:col-span-4 app-card p-4">
@@ -249,6 +224,6 @@ export default function DashboardPage() {
           )}
         </section>
       </div>
-    </main>
-  );
+  </AppShell>
+);
 }

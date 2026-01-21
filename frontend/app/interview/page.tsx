@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { getToken } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { safeFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
 
 type RoundType = "HR" | "DSA" | "SD";
 
@@ -26,6 +26,13 @@ type Evaluation = {
   ideal_answer: string;
 };
 
+const STORAGE = {
+  round: "icc_round",
+  sessionId: "icc_session_id",
+  messages: "icc_messages",
+  evaluation: "icc_evaluation",
+};
+
 export default function InterviewPage() {
   const router = useRouter();
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
@@ -40,9 +47,65 @@ export default function InterviewPage() {
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
+  const persistState = (
+    next: Partial<{
+      round: RoundType;
+      sessionId: string | null;
+      messages: Message[];
+      evaluation: Evaluation | null;
+    }>
+  ) => {
+    if (typeof window === "undefined") return;
+
+    if (typeof next.round !== "undefined") {
+      localStorage.setItem(STORAGE.round, next.round);
+    }
+
+    if (typeof next.sessionId !== "undefined") {
+      if (next.sessionId) localStorage.setItem(STORAGE.sessionId, next.sessionId);
+      else localStorage.removeItem(STORAGE.sessionId);
+    }
+
+    if (typeof next.messages !== "undefined") {
+      localStorage.setItem(STORAGE.messages, JSON.stringify(next.messages));
+    }
+
+    if (typeof next.evaluation !== "undefined") {
+      if (next.evaluation)
+        localStorage.setItem(STORAGE.evaluation, JSON.stringify(next.evaluation));
+      else localStorage.removeItem(STORAGE.evaluation);
+    }
+  };
+
   // Route protection
   useEffect(() => {
     if (!getToken()) router.push("/login");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load saved session state (Day 8 Step 2 persistence)
+  useEffect(() => {
+    try {
+      const savedRound = localStorage.getItem(STORAGE.round) as RoundType | null;
+      const savedSessionId = localStorage.getItem(STORAGE.sessionId);
+      const savedMessages = localStorage.getItem(STORAGE.messages);
+      const savedEvaluation = localStorage.getItem(STORAGE.evaluation);
+
+      if (savedRound) setRound(savedRound);
+      if (savedSessionId) setSessionId(savedSessionId);
+
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages);
+        if (Array.isArray(parsed)) setMessages(parsed);
+      }
+
+      if (savedEvaluation) {
+        const parsedEval = JSON.parse(savedEvaluation);
+        setEvaluation(parsedEval);
+      }
+    } catch {
+      // ignore corrupted storage
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -50,6 +113,9 @@ export default function InterviewPage() {
     setMessages([]);
     setEvaluation(null);
     setInput("");
+
+    // only clears UI chat + evaluation; does NOT delete round by default
+    persistState({ messages: [], evaluation: null });
   };
 
   const testBackend = async () => {
@@ -66,9 +132,12 @@ export default function InterviewPage() {
   const startInterview = async () => {
     try {
       setLoading(true);
+
+      // reset UI
       setMessages([]);
       setSessionId(null);
       setEvaluation(null);
+      persistState({ sessionId: null, messages: [], evaluation: null });
 
       const res = await safeFetch(`${backendBase}/api/interview/start`, {
         method: "POST",
@@ -78,8 +147,17 @@ export default function InterviewPage() {
 
       const data = await res.json();
 
+      const firstMsg: Message = { role: "assistant", content: data.first_question };
+
       setSessionId(data.session_id);
-      setMessages([{ role: "assistant", content: data.first_question }]);
+      setMessages([firstMsg]);
+
+      persistState({
+        round,
+        sessionId: data.session_id,
+        messages: [firstMsg],
+        evaluation: null,
+      });
     } catch (err: any) {
       if (err?.message === "UNAUTHORIZED") {
         router.push("/login");
@@ -101,8 +179,12 @@ export default function InterviewPage() {
     const userText = input.trim();
     setInput("");
 
-    // optimistic UI update
-    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+    // optimistic: add USER message
+    setMessages((prev) => {
+      const next = [...prev, { role: "user", content: userText } as Message];
+      persistState({ messages: next });
+      return next;
+    });
 
     try {
       setLoading(true);
@@ -115,13 +197,16 @@ export default function InterviewPage() {
 
       const data = await res.json();
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply },
-      ]);
+      // add assistant reply
+      setMessages((prev) => {
+        const next = [...prev, { role: "assistant", content: data.reply } as Message];
+        persistState({ messages: next });
+        return next;
+      });
 
       if (data.evaluation) {
         setEvaluation(data.evaluation);
+        persistState({ evaluation: data.evaluation });
       }
     } catch (err: any) {
       if (err?.message === "UNAUTHORIZED") {
@@ -135,25 +220,10 @@ export default function InterviewPage() {
   };
 
   return (
-    <main className="min-h-screen p-6">
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="app-title">Interview Session</h1>
-          <p className="app-subtitle">Practice HR / DSA / System Design rounds</p>
-        </div>
-
-        <div className="flex gap-3">
-          <Link className="underline text-sm" href="/">
-            Home
-          </Link>
-          <Link className="underline text-sm" href="/dashboard">
-            Dashboard
-          </Link>
-        </div>
-      </div>
-
-      {/* 3-column layout */}
+    <AppShell
+      title="Interview Session"
+      subtitle="Practice HR / DSA / System Design rounds"
+    >
       <div className="grid grid-cols-12 gap-6">
         {/* LEFT: controls */}
         <section className="col-span-12 lg:col-span-3 app-card p-4">
@@ -168,7 +238,11 @@ export default function InterviewPage() {
               <select
                 id="round"
                 value={round}
-                onChange={(e) => setRound(e.target.value as RoundType)}
+                onChange={(e) => {
+                  const r = e.target.value as RoundType;
+                  setRound(r);
+                  persistState({ round: r });
+                }}
                 className="input"
                 disabled={loading}
               >
@@ -228,7 +302,6 @@ export default function InterviewPage() {
         <section className="col-span-12 lg:col-span-6 app-card p-4 flex flex-col h-[75vh]">
           <h2 className="font-semibold mb-3">Chat</h2>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto space-y-3 pr-2">
             {messages.length === 0 ? (
               <div className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
@@ -266,7 +339,6 @@ export default function InterviewPage() {
             )}
           </div>
 
-          {/* Input */}
           <div className="mt-4 flex gap-2">
             <input
               value={input}
@@ -299,7 +371,6 @@ export default function InterviewPage() {
             </p>
           ) : (
             <div className="space-y-4 text-sm">
-              {/* Score */}
               <div
                 className="border rounded-2xl p-4"
                 style={{
@@ -332,7 +403,6 @@ export default function InterviewPage() {
                 </div>
               </div>
 
-              {/* Strengths */}
               <div
                 className="border rounded-2xl p-4"
                 style={{
@@ -348,7 +418,6 @@ export default function InterviewPage() {
                 </ul>
               </div>
 
-              {/* Improvements */}
               <div
                 className="border rounded-2xl p-4"
                 style={{
@@ -364,7 +433,6 @@ export default function InterviewPage() {
                 </ul>
               </div>
 
-              {/* Ideal Answer */}
               <div
                 className="border rounded-2xl p-4"
                 style={{
@@ -381,6 +449,6 @@ export default function InterviewPage() {
           )}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }
