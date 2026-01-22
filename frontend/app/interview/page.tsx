@@ -5,11 +5,15 @@ import { getToken } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { safeFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
+import { useSearchParams } from "next/navigation";
+
 
 type RoundType = "HR" | "DSA" | "SD";
 
+type Role = "user" | "assistant";
+
 type Message = {
-  role: "user" | "assistant";
+  role: Role;
   content: string;
 };
 
@@ -33,6 +37,20 @@ const STORAGE = {
   evaluation: "icc_evaluation",
 };
 
+function normalizeRole(r: any): Role {
+  return r === "user" ? "user" : "assistant";
+}
+
+function normalizeMessages(input: any): Message[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((m) => ({
+      role: normalizeRole(m?.role),
+      content: String(m?.content ?? ""),
+    }))
+    .filter((m) => m.content.trim().length > 0);
+}
+
 export default function InterviewPage() {
   const router = useRouter();
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
@@ -46,6 +64,10 @@ export default function InterviewPage() {
   const [healthStatus, setHealthStatus] = useState<string>("Not tested");
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+
+  const [resumeId, setResumeId] = useState("");
+  const searchParams = useSearchParams();
+
 
   const persistState = (
     next: Partial<{
@@ -83,8 +105,10 @@ export default function InterviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load saved session state (Day 8 Step 2 persistence)
+  // Load saved session state
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     try {
       const savedRound = localStorage.getItem(STORAGE.round) as RoundType | null;
       const savedSessionId = localStorage.getItem(STORAGE.sessionId);
@@ -96,7 +120,7 @@ export default function InterviewPage() {
 
       if (savedMessages) {
         const parsed = JSON.parse(savedMessages);
-        if (Array.isArray(parsed)) setMessages(parsed);
+        setMessages(normalizeMessages(parsed));
       }
 
       if (savedEvaluation) {
@@ -106,16 +130,65 @@ export default function InterviewPage() {
     } catch {
       // ignore corrupted storage
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+  const sid = searchParams.get("resume");
+  if (sid) {
+    setResumeId(sid);
+    // call resume automatically
+    setTimeout(() => resumeSession(), 200);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 
   const clearChat = () => {
     setMessages([]);
     setEvaluation(null);
     setInput("");
 
-    // only clears UI chat + evaluation; does NOT delete round by default
     persistState({ messages: [], evaluation: null });
+  };
+
+  const resumeSession = async () => {
+    if (!resumeId.trim()) {
+      alert("Enter a session id");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const res = await safeFetch(
+        `${backendBase}/api/interview/session/${resumeId.trim()}`
+      );
+      const data = await res.json();
+
+      const normalized = normalizeMessages(data.messages);
+
+      setRound(data.round);
+      setSessionId(data.session_id);
+      setMessages(normalized);
+      setEvaluation(data.evaluation || null);
+
+      persistState({
+        round: data.round,
+        sessionId: data.session_id,
+        messages: normalized,
+        evaluation: data.evaluation || null,
+      });
+
+      alert("Session resumed successfully");
+    } catch (err: any) {
+      if (err?.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
+      }
+      alert("Failed to resume session");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const testBackend = async () => {
@@ -133,7 +206,6 @@ export default function InterviewPage() {
     try {
       setLoading(true);
 
-      // reset UI
       setMessages([]);
       setSessionId(null);
       setEvaluation(null);
@@ -147,7 +219,10 @@ export default function InterviewPage() {
 
       const data = await res.json();
 
-      const firstMsg: Message = { role: "assistant", content: data.first_question };
+      const firstMsg: Message = {
+        role: "assistant",
+        content: String(data.first_question ?? ""),
+      };
 
       setSessionId(data.session_id);
       setMessages([firstMsg]);
@@ -181,7 +256,7 @@ export default function InterviewPage() {
 
     // optimistic: add USER message
     setMessages((prev) => {
-      const next = [...prev, { role: "user", content: userText } as Message];
+      const next: Message[] = [...prev, { role: "user", content: userText }];
       persistState({ messages: next });
       return next;
     });
@@ -197,9 +272,13 @@ export default function InterviewPage() {
 
       const data = await res.json();
 
-      // add assistant reply
+      const assistantMsg: Message = {
+        role: "assistant",
+        content: String(data.reply ?? ""),
+      };
+
       setMessages((prev) => {
-        const next = [...prev, { role: "assistant", content: data.reply } as Message];
+        const next = [...prev, assistantMsg];
         persistState({ messages: next });
         return next;
       });
@@ -220,12 +299,9 @@ export default function InterviewPage() {
   };
 
   return (
-    <AppShell
-      title="Interview Session"
-      subtitle="Practice HR / DSA / System Design rounds"
-    >
+    <AppShell title="Interview Session" subtitle="Practice HR / DSA / System Design rounds">
       <div className="grid grid-cols-12 gap-6">
-        {/* LEFT: controls */}
+        {/* LEFT */}
         <section className="col-span-12 lg:col-span-3 app-card p-4">
           <h2 className="font-semibold mb-3">Session Controls</h2>
 
@@ -270,6 +346,27 @@ export default function InterviewPage() {
             </div>
           </div>
 
+          {/* Resume */}
+          <div className="mt-4 space-y-2">
+            <label className="text-xs font-medium">Resume Session ID</label>
+
+            <input
+              value={resumeId}
+              onChange={(e) => setResumeId(e.target.value)}
+              placeholder="session_xxxxxxxx"
+              className="input"
+              disabled={loading}
+            />
+
+            <button
+              onClick={resumeSession}
+              disabled={loading}
+              className="btn-outline w-full disabled:opacity-60"
+            >
+              Resume Session
+            </button>
+          </div>
+
           {/* Buttons */}
           <div className="mt-4 grid grid-cols-1 gap-2">
             <button
@@ -298,7 +395,7 @@ export default function InterviewPage() {
           </button>
         </section>
 
-        {/* MIDDLE: chat */}
+        {/* MIDDLE */}
         <section className="col-span-12 lg:col-span-6 app-card p-4 flex flex-col h-[75vh]">
           <h2 className="font-semibold mb-3">Chat</h2>
 
@@ -361,7 +458,7 @@ export default function InterviewPage() {
           </div>
         </section>
 
-        {/* RIGHT: evaluation */}
+        {/* RIGHT */}
         <section className="col-span-12 lg:col-span-3 app-card p-4 h-[75vh] overflow-y-auto">
           <h2 className="font-semibold mb-3">Evaluation</h2>
 
@@ -382,68 +479,6 @@ export default function InterviewPage() {
                   <span className="font-medium">Score</span>
                   <span className="font-bold text-lg">{evaluation.score}/10</span>
                 </div>
-
-                <div className="mt-3 space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span>Clarity</span>
-                    <span>{evaluation.rubric.clarity}/10</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Structure</span>
-                    <span>{evaluation.rubric.structure}/10</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Relevance</span>
-                    <span>{evaluation.rubric.relevance}/10</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Impact</span>
-                    <span>{evaluation.rubric.impact}/10</span>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="border rounded-2xl p-4"
-                style={{
-                  background: "rgb(var(--card))",
-                  borderColor: "rgb(var(--border))",
-                }}
-              >
-                <p className="font-semibold mb-2">Strengths</p>
-                <ul className="list-disc pl-5 space-y-1 text-xs">
-                  {evaluation.strengths.map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div
-                className="border rounded-2xl p-4"
-                style={{
-                  background: "rgb(var(--card))",
-                  borderColor: "rgb(var(--border))",
-                }}
-              >
-                <p className="font-semibold mb-2">Improvements</p>
-                <ul className="list-disc pl-5 space-y-1 text-xs">
-                  {evaluation.improvements.map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div
-                className="border rounded-2xl p-4"
-                style={{
-                  background: "rgb(var(--card))",
-                  borderColor: "rgb(var(--border))",
-                }}
-              >
-                <p className="font-semibold mb-2">Ideal Answer</p>
-                <p className="text-xs whitespace-pre-wrap">
-                  {evaluation.ideal_answer}
-                </p>
               </div>
             </div>
           )}

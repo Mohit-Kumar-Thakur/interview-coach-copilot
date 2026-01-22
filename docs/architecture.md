@@ -1,5 +1,4 @@
 
-Paste this:
 
 ```md
 # Architecture — Interview Coach Copilot
@@ -367,3 +366,76 @@ This was a frontend-only improvement focused on UX and stability.
 - No hydration errors
 - Interview chat persists across refresh
 - Clear Chat provides clean UX reset
+
+
+## Day 9 — Resume Session API + Frontend State Persistence
+
+### Goal
+Allow users to resume any previous interview session and persist chat state across refresh/reload.
+
+---
+
+### Backend Updates
+
+#### Resume Session Endpoint
+- Added **Resume Session API**
+  - `GET /api/interview/session/{session_id}`
+- Response includes:
+  - `session_id`
+  - `round`
+  - `difficulty`
+  - `created_at`
+  - ordered `messages[]` (role, content, created_at)
+  - optional `evaluation` (if available)
+
+#### Security
+- Uses JWT auth via `Authorization: Bearer <token>`
+- Ownership check: user can resume only their own sessions
+- Returns:
+  - `404` if not found
+  - `403` if forbidden (not owner)
+
+---
+
+### Frontend Updates
+
+#### 1) Persistence (LocalStorage)
+Interview page now stores state so refresh does not lose progress.
+
+Stored keys:
+- `icc_round`
+- `icc_session_id`
+- `icc_messages`
+- `icc_evaluation`
+
+Persisted data:
+- `round`
+- `sessionId`
+- `messages[]`
+- `evaluation`
+
+Safeguards:
+- `typeof window !== "undefined"` checks
+- corrupted storage JSON is ignored safely
+
+---
+
+#### 2) Resume Session UI (Interview Page)
+Added:
+- input field: `Resume Session ID`
+- button: `Resume Session`
+
+Flow:
+- user enters `session_xxxxxxxx`
+- frontend calls:
+  - `GET /api/interview/session/{session_id}`
+- loads:
+  - round, sessionId, messages, evaluation
+- saves to localStorage immediately
+
+---
+
+### Result
+- Current interview chat survives refresh/reload
+- Any past session can be resumed by session_id
+- Resume endpoint is secure + user-owned
