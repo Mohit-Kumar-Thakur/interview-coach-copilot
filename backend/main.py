@@ -15,7 +15,9 @@ from models import User, InterviewSession, Message
 from auth import hash_password, verify_password, create_access_token,SECRET_KEY, ALGORITHM
 
 from fastapi import Header
-
+from pydantic import BaseModel
+from typing import List, Optional
+from fastapi import HTTPException
 
 Base.metadata.create_all(bind=engine)
 
@@ -58,7 +60,19 @@ SD_QUESTIONS = [
     "Design a news feed system (like Instagram).",
 ]
 
+class MsgOut(BaseModel):
+    role: str
+    content: str
+    created_at: str
 
+class ResumeSessionResponse(BaseModel):
+    session_id: str
+    round: str
+    difficulty: str
+    created_at: str
+    messages: List[MsgOut]
+    evaluation: Optional[dict] = None
+    
 class StartInterviewRequest(BaseModel):
     round: Literal["HR", "DSA", "SD"] = "HR"
     difficulty: str = "medium"
@@ -388,5 +402,55 @@ def update_me(
         },
     }
 
+@app.get("/api/interview/session/{session_id}", response_model=ResumeSessionResponse)
+def resume_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # 1) fetch session row
+    s = (
+        db.query(InterviewSession)
+        .filter(InterviewSession.id == session_id)
+        .first()
+    )
 
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
 
+    # 2) verify ownership
+    if s.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # 3) fetch messages (your model is Message, not InterviewMessage)
+    msgs = (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.id.asc())
+        .all()
+    )
+
+    # 4) build response messages
+    out_msgs = [
+        {
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat() if m.created_at else "",
+        }
+        for m in msgs
+    ]
+
+    # evaluation: only if you store it in InterviewSession table
+    eval_data = None
+    if hasattr(s, "evaluation") and getattr(s, "evaluation"):
+        eval_data = s.evaluation
+
+    return {
+        "session_id": s.id,
+        "round": s.round,
+        "difficulty": s.difficulty,
+        "created_at": s.created_at.isoformat() if s.created_at else "",
+        "messages": out_msgs,
+        "evaluation": eval_data,
+    }
+    
