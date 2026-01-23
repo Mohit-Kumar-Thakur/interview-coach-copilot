@@ -37,6 +37,7 @@ export default function AppShell({ title, subtitle, children }: Props) {
           <Link className="underline text-sm" href="/">
             Home
           </Link>
+          
 
           {ready && hasToken && (
             <>
@@ -47,6 +48,11 @@ export default function AppShell({ title, subtitle, children }: Props) {
               <Link className="underline text-sm" href="/interview">
                 Interview
               </Link>
+              <Link href="/profile" className="underline text-sm">
+                Profile
+              </Link>
+              
+
 
               <button
                 onClick={() => {

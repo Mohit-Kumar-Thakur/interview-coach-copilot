@@ -439,3 +439,123 @@ Flow:
 - Current interview chat survives refresh/reload
 - Any past session can be resumed by session_id
 - Resume endpoint is secure + user-owned
+
+
+## Day 10 — User Profiles + Profile-Aware Evaluation + Score Analytics
+
+### Goal
+Add user profile management, make evaluations context-aware using profile data, persist evaluations at message level for analytics, and add score tracking to the Dashboard.
+
+---
+
+### Backend Updates
+
+#### 1) User Profile Fields
+Added profile fields to `User` model:
+- `full_name` (String)
+- `college` (String)
+- `department` (String)
+- `graduation_year` (Integer)
+- `created_at` (DateTime)
+
+Database migration: `migrate_add_profile_fields.py`
+
+#### 2) Profile Management APIs
+- `GET /api/me` → returns full user profile including new fields
+- `GET /api/users/me` → alias for profile retrieval
+- `PUT /api/users/me` → update profile fields
+  - accepts: `full_name`, `college`, `department`, `graduation_year`
+  - validates user ownership via JWT
+
+#### 3) Profile-Aware Evaluation
+Updated `evaluator.py`:
+- `evaluate_hr_answer(question, answer, profile)` now accepts optional profile dict
+- Generates profile summary for context:
+  - User's name, college, department, graduation year
+- Returns additional fields in evaluation:
+  - `profile_used` (bool)
+  - `profile_summary` (formatted string)
+
+Updated interview message endpoint:
+- Fetches user profile from authenticated user
+- Passes profile to evaluator for context-aware feedback
+
+#### 4) Evaluation Persistence (Message Level)
+Added `evaluation` JSON column to `Message` model:
+- Stores evaluation result with each user message
+- Database migration: `migrate_add_message_evaluation.py`
+
+Updated `/api/interview/message`:
+- Stores evaluation on user message (not just session)
+- Also keeps latest evaluation on session for quick access
+- Enables per-message score tracking
+
+#### 5) Score Analytics APIs
+Updated `/api/sessions`:
+- Returns `latest_score` extracted from session evaluation
+- Format: `{ session_id, round, difficulty, created_at, latest_score }`
+
+Updated `/api/sessions/{session_id}`:
+- Includes `evaluation` field with each message
+- Enables score history retrieval
+
+---
+
+### Frontend Updates
+
+#### 1) Profile Page (`/profile`)
+New page for profile management:
+- Display current profile (email, name, college, dept, grad year)
+- Edit profile fields
+- Save/refresh profile data
+- Shows account creation date
+- Profile completion tracking
+
+#### 2) Profile Completion Tracking
+Added profile completion percentage calculation:
+- Checks 4 fields: `full_name`, `college`, `department`, `graduation_year`
+- Each filled field = 25% completion
+- Validates non-null, non-empty values
+
+Dashboard updates:
+- Shows "Profile: X%" badge in top bar
+- Shows "Complete Profile" CTA button when < 50% complete
+- Both Dashboard and Interview pages display profile completion
+
+Interview page updates:
+- Shows profile summary in session controls
+- Displays "Complete Profile" warning when < 50%
+- Links to profile page for easy completion
+
+#### 3) Dashboard Score Analytics
+Session list enhancements:
+- Displays latest score badge next to each session
+- Format: "Score: X/10"
+
+Session detail panel:
+- Shows score history (last 5 evaluations)
+- Displays score + timestamp for each evaluation
+- Horizontal scrollable cards for easy viewing
+
+---
+
+### Database Schema Updates
+
+**users table**
+- Added: `full_name`, `college`, `department`, `graduation_year`
+
+**sessions table**
+- Already has: `evaluation` (JSON)
+
+**messages table**
+- Added: `evaluation` (JSON) for per-message score tracking
+
+---
+
+### Result
+- Users can manage comprehensive profiles
+- Evaluations are personalized based on user context
+- Score history tracked at message level
+- Dashboard shows score trends and analytics
+- Profile completion encourages better evaluation quality
+```

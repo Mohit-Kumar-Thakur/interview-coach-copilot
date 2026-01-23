@@ -1,10 +1,20 @@
 from typing import Dict, List
 
-def evaluate_hr_answer(question: str, answer: str) -> Dict:
+def evaluate_hr_answer(question: str, answer: str, profile: dict | None = None) -> Dict:
     """
     Rule-based HR rubric evaluator (Day 3).
     Later replace with LLM structured evaluation.
     """
+    
+    profile = profile or {}
+
+    profile_text = (
+        f"User Profile:\n"
+        f"- Full Name: {profile.get('full_name')}\n"
+        f"- College: {profile.get('college')}\n"
+        f"- Department: {profile.get('department')}\n"
+        f"- Graduation Year: {profile.get('graduation_year')}\n"
+    )
 
     a = answer.strip()
     a_lower = a.lower()
@@ -97,5 +107,7 @@ def evaluate_hr_answer(question: str, answer: str) -> Dict:
         },
         "strengths": strengths,
         "improvements": improvements,
-        "ideal_answer": ideal_answer
+        "ideal_answer": ideal_answer,
+        "profile_used": bool(profile),
+        "profile_summary": profile_text,
     }

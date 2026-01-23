@@ -241,8 +241,10 @@ def interview_message(
     )
     last_question = last_assistant.content if last_assistant else "Tell me about yourself."
 
-    # store user message
-    db.add(Message(session_id=payload.session_id, role="user", content=payload.message))
+    # store user message first (we'll update it with evaluation later for HR)
+    user_msg = Message(session_id=payload.session_id, role="user", content=payload.message)
+    db.add(user_msg)
+    db.flush()  # Get the ID without committing
 
     # follow-up
     round_type = db_session.round
@@ -251,8 +253,6 @@ def interview_message(
     # store assistant reply
     db.add(Message(session_id=payload.session_id, role="assistant", content=reply))
 
-    db.commit()
-
     # evaluation only HR
     response = {
         "session_id": payload.session_id,
@@ -260,18 +260,46 @@ def interview_message(
     }
 
     if round_type == "HR":
-        response["evaluation"] = evaluate_hr_answer(last_question, payload.message)
+        profile = {
+            "full_name": user.full_name,
+            "college": user.college,
+            "department": user.department,
+            "graduation_year": user.graduation_year,
+        }
 
+        evaluation = evaluate_hr_answer(last_question, payload.message, profile)
+
+        # Store evaluation on the user message (not session)
+        user_msg.evaluation = evaluation
+        
+        # Also keep latest evaluation on session for quick access
+        db_session.evaluation = evaluation
+        db.add(db_session)
+
+        response["evaluation"] = evaluation
+
+    db.commit()
     return response
 
 
 
 @app.post("/api/evaluate")
-def evaluate(payload: EvaluateRequest):
+def evaluate(
+    payload: EvaluateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     if payload.round != "HR":
         return {"note": "Only HR evaluation implemented on Day 3"}
 
-    return evaluate_hr_answer(payload.question, payload.answer)
+    profile = {
+    "full_name": user.full_name,
+    "college": user.college,
+    "department": user.department,
+    "graduation_year": user.graduation_year,
+    }
+    return evaluate_hr_answer(payload.question, payload.answer, profile)
+
 
 @app.get("/api/sessions")
 def list_sessions(
@@ -279,12 +307,11 @@ def list_sessions(
     user: User = Depends(get_current_user),
 ):
     sessions = (
-    db.query(InterviewSession)
-    .filter(InterviewSession.user_id == user.id)
-    .order_by(InterviewSession.created_at.desc())
-    .all()
+        db.query(InterviewSession)
+        .filter(InterviewSession.user_id == user.id)
+        .order_by(InterviewSession.created_at.desc())
+        .all()
     )
-
 
     return [
         {
@@ -292,6 +319,7 @@ def list_sessions(
             "round": s.round,
             "difficulty": s.difficulty,
             "created_at": s.created_at,
+            "latest_score": s.evaluation.get("score") if s.evaluation else None,
         }
         for s in sessions
     ]
@@ -324,7 +352,15 @@ def get_session_messages(
         "round": db_session.round,
         "difficulty": db_session.difficulty,
         "created_at": db_session.created_at,
-        "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in msgs],
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+                "evaluation": m.evaluation,
+            }
+            for m in msgs
+        ],
     }
     
 @app.post("/api/auth/register")
@@ -354,7 +390,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/me")
 def me(user: User = Depends(get_current_user)):
-    return {"id": user.id, "email": user.email}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "college": user.college,
+        "department": user.department,
+        "graduation_year": user.graduation_year,
+        "created_at": user.created_at,
+    }
+
 
 
 @app.get("/api/users/me")
@@ -374,8 +419,13 @@ def get_me(user: User = Depends(get_current_user)):
 def update_me(
     payload: UpdateProfileRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    # Re-query the user in this session to avoid detached instance issues
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     # only update fields that are provided
     if payload.full_name is not None:
         user.full_name = payload.full_name
@@ -386,7 +436,6 @@ def update_me(
     if payload.graduation_year is not None:
         user.graduation_year = payload.graduation_year
 
-    db.add(user)
     db.commit()
     db.refresh(user)
 
@@ -426,7 +475,7 @@ def resume_session(
     msgs = (
         db.query(Message)
         .filter(Message.session_id == session_id)
-        .order_by(Message.id.asc())
+        .order_by(Message.created_at.asc())
         .all()
     )
 
@@ -440,17 +489,12 @@ def resume_session(
         for m in msgs
     ]
 
-    # evaluation: only if you store it in InterviewSession table
-    eval_data = None
-    if hasattr(s, "evaluation") and getattr(s, "evaluation"):
-        eval_data = s.evaluation
-
     return {
         "session_id": s.id,
         "round": s.round,
         "difficulty": s.difficulty,
         "created_at": s.created_at.isoformat() if s.created_at else "",
         "messages": out_msgs,
-        "evaluation": eval_data,
+        "evaluation": s.evaluation,
     }
     

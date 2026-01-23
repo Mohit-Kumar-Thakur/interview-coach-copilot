@@ -68,6 +68,30 @@ export default function InterviewPage() {
   const [resumeId, setResumeId] = useState("");
   const searchParams = useSearchParams();
 
+  const [profile, setProfile] = useState<any>(null);
+
+  const fetchProfile = async () => {
+    try {
+      const res = await safeFetch(`${backendBase}/api/me`);
+      const data = await res.json();
+      setProfile(data);
+    } catch { }
+  };
+
+  const profileCompletion = useMemo(() => {
+    if (!profile) return 0;
+
+    const fields = ["full_name", "college", "department", "graduation_year"] as const;
+    let filled = 0;
+
+    for (const f of fields) {
+      const val = profile?.[f];
+      if (val !== null && val !== undefined && String(val).trim() !== "") filled++;
+    }
+
+    return Math.round((filled / fields.length) * 100);
+  }, [profile]);
+
 
   const persistState = (
     next: Partial<{
@@ -133,14 +157,16 @@ export default function InterviewPage() {
   }, []);
 
   useEffect(() => {
-  const sid = searchParams.get("resume");
-  if (sid) {
-    setResumeId(sid);
-    // call resume automatically
-    setTimeout(() => resumeSession(), 200);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+    fetchProfile();
+
+    const sid = searchParams.get("resume");
+    if (sid) {
+      setResumeId(sid);
+      // call resume automatically
+      setTimeout(() => resumeSession(), 200);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   const clearChat = () => {
@@ -367,6 +393,21 @@ export default function InterviewPage() {
             </button>
           </div>
 
+          {profile && profileCompletion < 50 && (
+            <div className="mt-4">
+              <p className="text-xs mb-2" style={{ color: "rgb(var(--danger))" }}>
+                Profile is incomplete. Completing profile improves evaluation relevance.
+              </p>
+
+              <button
+                onClick={() => router.push("/profile")}
+                className="btn-primary w-full"
+              >
+                Complete Profile
+              </button>
+            </div>
+          )}
+
           {/* Buttons */}
           <div className="mt-4 grid grid-cols-1 gap-2">
             <button
@@ -393,6 +434,17 @@ export default function InterviewPage() {
           >
             Test Backend
           </button>
+
+          {profile && (
+            <div className="mt-4 border rounded-2xl p-3 bg-white"
+              style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs font-semibold mb-2">Profile</p>
+              <p className="text-xs" style={{ color: "rgb(var(--subtext))" }}>
+                {profile.full_name || "No name"} • {profile.department || "No dept"} •{" "}
+                {profile.college || "No college"}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* MIDDLE */}
@@ -412,16 +464,16 @@ export default function InterviewPage() {
                   style={
                     m.role === "user"
                       ? {
-                          marginLeft: "auto",
-                          background: "rgb(var(--text))",
-                          color: "white",
-                          borderColor: "rgb(var(--text))",
-                        }
+                        marginLeft: "auto",
+                        background: "rgb(var(--text))",
+                        color: "white",
+                        borderColor: "rgb(var(--text))",
+                      }
                       : {
-                          background: "rgb(var(--muted))",
-                          color: "rgb(var(--text))",
-                          borderColor: "rgb(var(--border))",
-                        }
+                        background: "rgb(var(--muted))",
+                        color: "rgb(var(--text))",
+                        borderColor: "rgb(var(--border))",
+                      }
                   }
                 >
                   {m.content}

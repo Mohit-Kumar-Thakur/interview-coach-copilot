@@ -1,6 +1,10 @@
 from sqlalchemy import Column, String, Integer, Text, ForeignKey, DateTime
 from sqlalchemy.sql import func
 from db import Base
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
+from sqlalchemy.sql import func
+from sqlalchemy.dialects.sqlite import JSON  
+
 
 class User(Base):
     __tablename__ = "users"
@@ -26,6 +30,7 @@ class InterviewSession(Base):
     round = Column(String, nullable=False)
     difficulty = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    evaluation = Column(JSON, nullable=True)
     
 
 
@@ -38,3 +43,5 @@ class Message(Base):
     role = Column(String, nullable=False)  # user / assistant
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    evaluation = Column(JSON, nullable=True)  # Store evaluation per message
+

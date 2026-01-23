@@ -11,12 +11,14 @@ type SessionItem = {
   round: string;
   difficulty: string;
   created_at: string;
+  latest_score?: number | null;
 };
 
 type Msg = {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  evaluation?: any;
 };
 
 type SessionDetail = {
@@ -37,7 +39,14 @@ export default function DashboardPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
 
-  const [me, setMe] = useState<{ id: number; email: string } | null>(null);
+  const [me, setMe] = useState<{
+    id: number;
+    email: string;
+    full_name?: string | null;
+    college?: string | null;
+    department?: string | null;
+    graduation_year?: number | null;
+  } | null>(null);
 
   // Route protection
   useEffect(() => {
@@ -54,6 +63,20 @@ export default function DashboardPage() {
       if (err?.message === "UNAUTHORIZED") router.push("/login");
     }
   };
+
+  const profileCompletion = useMemo(() => {
+    if (!me) return 0;
+
+    const fields = ["full_name", "college", "department", "graduation_year"] as const;
+    let filled = 0;
+
+    for (const f of fields) {
+      const val = (me as any)[f];
+      if (val !== null && val !== undefined && String(val).trim() !== "") filled++;
+    }
+
+    return Math.round((filled / fields.length) * 100);
+  }, [me]);
 
   const fetchSessions = async () => {
     try {
@@ -113,6 +136,11 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-3">
           {me?.email && <span className="badge">{me.email}</span>}
+          {me && (
+            <span className="badge">
+              Profile: {profileCompletion}%
+            </span>
+          )}
 
           <Link className="underline text-sm" href="/">
             Home
@@ -121,6 +149,19 @@ export default function DashboardPage() {
           <Link className="underline text-sm" href="/interview">
             Interview
           </Link>
+
+          <Link className="underline text-sm" href="/profile">
+            Profile
+          </Link>
+
+          {me && profileCompletion < 50 && (
+            <button
+              onClick={() => router.push("/profile")}
+              className="btn-primary"
+            >
+              Complete Profile
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -159,13 +200,19 @@ export default function DashboardPage() {
                 <button
                   key={s.session_id}
                   onClick={() => fetchSessionDetail(s.session_id)}
-                  className={`w-full text-left border rounded-xl p-3 text-sm transition ${
-                    selectedSessionId === s.session_id
-                      ? "border-black"
-                      : "hover:bg-gray-50"
-                  }`}
+                  className={`w-full text-left border rounded-xl p-3 text-sm transition ${selectedSessionId === s.session_id
+                    ? "border-black"
+                    : "hover:bg-gray-50"
+                    }`}
                 >
-                  <div className="font-medium">{s.round}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{s.round}</div>
+                    {s.latest_score !== null && s.latest_score !== undefined && (
+                      <span className="badge text-xs">
+                        Score: {s.latest_score}/10
+                      </span>
+                    )}
+                  </div>
 
                   <div className="text-xs break-words" style={{ color: "rgb(var(--subtext))" }}>
                     {s.session_id}
@@ -215,8 +262,33 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Score History */}
+              {detail.messages.filter(m => m.evaluation).length > 0 && (
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold mb-2">Score History (Last 5)</h3>
+                  <div className="flex gap-2 overflow-x-auto">
+                    {detail.messages
+                      .filter(m => m.evaluation)
+                      .slice(-5)
+                      .reverse()
+                      .map((m, idx) => (
+                        <div
+                          key={idx}
+                          className="border rounded-xl p-3 min-w-[120px]"
+                          style={{ background: "rgb(var(--muted))", borderColor: "rgb(var(--border))" }}
+                        >
+                          <div className="text-lg font-bold">{m.evaluation?.score}/10</div>
+                          <div className="text-xs" style={{ color: "rgb(var(--subtext))" }}>
+                            {new Date(m.created_at).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               <div className="border rounded-2xl p-4 h-[60vh] overflow-y-auto"
-                   style={{ background: "rgb(var(--muted))", borderColor: "rgb(var(--border))" }}>
+                style={{ background: "rgb(var(--muted))", borderColor: "rgb(var(--border))" }}>
                 <div className="space-y-3">
                   {detail.messages.map((m, idx) => (
                     <div
@@ -225,16 +297,16 @@ export default function DashboardPage() {
                       style={
                         m.role === "user"
                           ? {
-                              marginLeft: "auto",
-                              background: "rgb(var(--text))",
-                              color: "white",
-                              borderColor: "rgb(var(--text))",
-                            }
+                            marginLeft: "auto",
+                            background: "rgb(var(--text))",
+                            color: "white",
+                            borderColor: "rgb(var(--text))",
+                          }
                           : {
-                              background: "rgb(var(--card))",
-                              color: "rgb(var(--text))",
-                              borderColor: "rgb(var(--border))",
-                            }
+                            background: "rgb(var(--card))",
+                            color: "rgb(var(--text))",
+                            borderColor: "rgb(var(--border))",
+                          }
                       }
                     >
                       {m.content}
