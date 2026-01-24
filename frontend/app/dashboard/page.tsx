@@ -5,6 +5,14 @@ import Link from "next/link";
 import { getToken, logout } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { safeFetch } from "@/lib/api";
+import { exportSessionPDF } from "@/lib/pdf";
+import { computeAnalytics } from "@/lib/analytics";
+import { computeInsights } from "@/lib/insights";
+import { computeMetrics } from "@/lib/metrics";
+import { exportSessionJSON, exportSessionMarkdown } from "@/lib/exporter";
+
+
+
 
 type SessionItem = {
   session_id: string;
@@ -18,7 +26,9 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   created_at: string;
-  evaluation?: any;
+  evaluation?: {
+    score: number;
+  } | null;
 };
 
 type SessionDetail = {
@@ -47,6 +57,12 @@ export default function DashboardPage() {
     department?: string | null;
     graduation_year?: number | null;
   } | null>(null);
+
+  const analytics = computeAnalytics(sessions);
+  const insights = computeInsights(sessions);
+  const metrics = computeMetrics(sessions);
+
+
 
   // Route protection
   useEffect(() => {
@@ -120,6 +136,16 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const scoreHistory = useMemo(() => {
+    if (!detail?.messages) return [];
+    return detail.messages
+      .filter(m => m.evaluation?.score !== undefined)
+      .map(m => ({
+        score: m.evaluation!.score,
+        at: m.created_at,
+      }));
+  }, [detail]);
+
   const resumeSelected = () => {
     if (!detail?.session_id) return;
     router.push(`/interview?resume=${detail.session_id}`);
@@ -175,6 +201,83 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Analytics Panel */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="app-card p-4">
+          <p className="text-xs text-gray-500">Total Sessions</p>
+          <p className="text-xl font-semibold">{analytics.total}</p>
+        </div>
+
+        <div className="app-card p-4">
+          <p className="text-xs text-gray-500">HR Sessions</p>
+          <p className="text-xl font-semibold">{analytics.byRound.HR}</p>
+        </div>
+
+        <div className="app-card p-4">
+          <p className="text-xs text-gray-500">DSA Sessions</p>
+          <p className="text-xl font-semibold">{analytics.byRound.DSA}</p>
+        </div>
+
+        <div className="app-card p-4">
+          <p className="text-xs text-gray-500">Avg HR Score</p>
+          <p className="text-xl font-semibold">
+            {analytics.avgHrScore ?? "--"}
+          </p>
+        </div>
+      </div>
+
+      {/* Progress Summary */}
+      <div className="app-card p-4 mb-6">
+        <h2 className="font-semibold mb-2">Progress Summary</h2>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <div className="text-gray-500">Total Interviews</div>
+            <div className="font-semibold">{metrics.total}</div>
+          </div>
+
+          <div>
+            <div className="text-gray-500">HR Interviews</div>
+            <div className="font-semibold">{metrics.hrCount}</div>
+          </div>
+
+          <div>
+            <div className="text-gray-500">Avg HR Score</div>
+            <div className="font-semibold">
+              {metrics.avgHrScore ?? "--"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-gray-500">Last Interview</div>
+            <div className="font-semibold">
+              {metrics.lastSessionDate ?? "--"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interview Insights */}
+      <div className="app-card p-4 mb-6">
+        <h2 className="font-semibold mb-2">Interview Insights</h2>
+
+        <div className="text-sm space-y-1">
+          <p>
+            <span className="font-medium">Top Strength:</span>{" "}
+            {insights.topStrength ?? "--"}
+          </p>
+
+          <p>
+            <span className="font-medium">Needs Improvement:</span>{" "}
+            {insights.topImprovement ?? "--"}
+          </p>
+
+          <p className="text-gray-600">
+            {insights.recommendation ?? "Complete more HR interviews to unlock insights."}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-12 gap-6">
         {/* Sessions list */}
         <section className="col-span-12 md:col-span-4 app-card p-4">
@@ -207,10 +310,9 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{s.round}</div>
-                    {s.latest_score !== null && s.latest_score !== undefined && (
-                      <span className="badge text-xs">
-                        Score: {s.latest_score}/10
-                      </span>
+
+                    {typeof s.latest_score === "number" && (
+                      <span className="badge">Score: {s.latest_score}/10</span>
                     )}
                   </div>
 
@@ -241,6 +343,24 @@ export default function DashboardPage() {
             </button>
           </div>
 
+          {detail && (
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => exportSessionJSON(detail)}
+                className="btn-outline text-xs"
+              >
+                Export JSON
+              </button>
+
+              <button
+                onClick={() => exportSessionMarkdown(detail)}
+                className="btn-outline text-xs"
+              >
+                Export Markdown
+              </button>
+            </div>
+          )}
+
           {!detail ? (
             <p className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
               Select a session from the left panel to view details.
@@ -261,6 +381,24 @@ export default function DashboardPage() {
                   <span style={{ color: "rgb(var(--subtext))" }}>{detail.difficulty}</span>
                 </div>
               </div>
+
+              {scoreHistory.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-semibold mb-2">Score Trend</h3>
+
+                  <div className="space-y-2">
+                    {scoreHistory.slice(-5).map((s, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between border rounded-lg px-3 py-2 text-sm bg-white"
+                      >
+                        <span>{new Date(s.at).toLocaleTimeString()}</span>
+                        <span className="font-medium">{s.score}/10</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Score History */}
               {detail.messages.filter(m => m.evaluation).length > 0 && (
@@ -285,6 +423,15 @@ export default function DashboardPage() {
                       ))}
                   </div>
                 </div>
+              )}
+
+              {detail && (
+                <button
+                  onClick={() => exportSessionPDF(detail)}
+                  className="text-sm border rounded-lg px-3 py-1 mb-3"
+                >
+                  Export PDF
+                </button>
               )}
 
               <div className="border rounded-2xl p-4 h-[60vh] overflow-y-auto"

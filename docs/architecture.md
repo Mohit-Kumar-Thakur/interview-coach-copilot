@@ -558,4 +558,116 @@ Session detail panel:
 - Score history tracked at message level
 - Dashboard shows score trends and analytics
 - Profile completion encourages better evaluation quality
+
+
+## Day 11 — Session Export + Dashboard Analytics Enhancements
+
+### Goal
+Add comprehensive session export functionality and enhance dashboard with analytics insights, progress metrics, and score tracking.
+
+---
+
+### Frontend Updates
+
+#### 1) Session Export Features
+Added multiple export formats for interview sessions:
+
+**Export to PDF** (`lib/pdf.ts`)
+- Uses jsPDF library for PDF generation
+- Includes session metadata (ID, round, difficulty, date)
+- Renders full conversation transcript
+- Shows evaluation scores inline
+- Downloads as `session_{id}.pdf`
+
+**Export to JSON** (`lib/exporter.ts`)
+- Raw JSON export of session data
+- Includes all messages with timestamps
+- Contains evaluation results
+- Downloads as `{session_id}.json`
+
+**Export to Markdown** (`lib/exporter.ts`)
+- Human-readable Markdown format
+- Session metadata header
+- Formatted conversation transcript
+- Evaluation summary with strengths/improvements
+- Downloads as `{session_id}.md`
+
+Dashboard UI updates:
+- Added "Export PDF" button above message list
+- Added "Export JSON" and "Export Markdown" buttons in session detail header
+- All buttons conditionally render when session is selected
+
+---
+
+#### 2) Dashboard Analytics Enhancements
+
+**Analytics Panel** (`lib/analytics.ts`)
+4-card grid showing:
+- Total Sessions count
+- HR Sessions count
+- DSA Sessions count
+- Average HR Score (rounded to 1 decimal)
+
+**Progress Summary** (`lib/metrics.ts`)
+Detailed metrics panel with:
+- Total Interviews count
+- HR Interviews count
+- Average HR Score
+- Last Interview Date (formatted)
+
+**Interview Insights** (`lib/insights.ts`)
+AI-powered insights panel displaying:
+- Top Strength (most frequently mentioned in evaluations)
+- Needs Improvement (most common improvement area)
+- Personalized Recommendation text
+
+---
+
+#### 3) Score Tracking & Display
+
+**Session List Enhancements**
+- Added score badge to each session item
+- Format: "Score: X/10"
+- Uses `typeof check` for safe rendering
+- Only shows when score is available
+
+**Score Trend Section**
+- Displays last 5 scores vertically
+- Shows timestamp + score for each evaluation
+- Clean list format with borders
+- Auto-updates when session changes
+
+---
+
+### Type Safety Improvements
+
+Updated `Msg` type in dashboard:
+```typescript
+evaluation?: {
+  score: number;
+} | null;
+```
+
+Backend safe access:
+- Added `hasattr(m, "evaluation")` check before accessing evaluation field
+- Prevents attribute errors on messages without evaluations
+
+---
+
+### Backend Impact
+**None** — All Day 11 features are frontend-only changes:
+- Session export uses existing session data
+- Analytics computed from existing evaluations
+- No new API endpoints required
+- No database schema changes
+
+---
+
+### Result
+- Users can export sessions in 3 formats (PDF, JSON, Markdown)
+- Dashboard provides comprehensive analytics at a glance
+- Progress tracking shows interview history and trends
+- AI-powered insights help identify strengths and areas to improve
+- Score tracking visualizes performance over time
+- All features use existing backend APIs with no modifications
 ```

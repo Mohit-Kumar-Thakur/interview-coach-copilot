@@ -314,15 +314,16 @@ def list_sessions(
     )
 
     return [
-        {
-            "session_id": s.id,
-            "round": s.round,
-            "difficulty": s.difficulty,
-            "created_at": s.created_at,
-            "latest_score": s.evaluation.get("score") if s.evaluation else None,
-        }
-        for s in sessions
-    ]
+    {
+        "session_id": s.id,
+        "round": s.round,
+        "difficulty": s.difficulty,
+        "created_at": s.created_at,
+        "latest_score": (s.evaluation.get("score") if s.evaluation else None),
+    }
+    for s in sessions
+]
+
 
 
 @app.get("/api/sessions/{session_id}")
@@ -357,7 +358,7 @@ def get_session_messages(
                 "role": m.role,
                 "content": m.content,
                 "created_at": m.created_at,
-                "evaluation": m.evaluation,
+                "evaluation": m.evaluation if hasattr(m, "evaluation") else None,
             }
             for m in msgs
         ],
