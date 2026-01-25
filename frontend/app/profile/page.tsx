@@ -13,6 +13,7 @@ type Profile = {
   college: string | null;
   department: string | null;
   graduation_year: number | null;
+  profile_score?: number;
   created_at?: string;
 };
 
@@ -72,14 +73,14 @@ export default function ProfilePage() {
           : null,
       };
 
-      const res = await safeFetch(`${backendBase}/api/users/me`, {
+      await safeFetch(`${backendBase}/api/users/me`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      setMe(data.user ? { ...me!, ...data.user } : me);
+      // Refetch to get updated profile_score
+      await fetchMe();
 
       alert("Profile updated ✅");
     } catch (err: any) {
@@ -119,6 +120,46 @@ export default function ProfilePage() {
                   Refresh
                 </button>
               </div>
+
+              {/* Profile Completeness Progress Bar */}
+              {me?.profile_score !== undefined && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">Profile Completeness</h3>
+                      <div className="relative group">
+                        <svg className="w-4 h-4 text-gray-400 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        </svg>
+                        {/* Tooltip */}
+                        <div className="absolute hidden group-hover:block bottom-full mb-2 left-1/2 transform -translate-x-1/2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10">
+                          <p>Profile completeness impacts interview feedback quality.</p>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div className="border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold">{me.profile_score}%</span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${me.profile_score < 40 ? 'bg-red-500' :
+                          me.profile_score < 70 ? 'bg-amber-500' :
+                            'bg-green-500'
+                        }`}
+                      style={{ width: `${me.profile_score}%` }}
+                    />
+                  </div>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    {me.profile_score === 100 ? '✓ Profile complete!' :
+                      `Fill in ${Math.ceil((100 - me.profile_score) / 25)} more ${Math.ceil((100 - me.profile_score) / 25) === 1 ? 'field' : 'fields'} to complete your profile`}
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

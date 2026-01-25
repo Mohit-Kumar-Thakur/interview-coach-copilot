@@ -56,13 +56,19 @@ export default function DashboardPage() {
     college?: string | null;
     department?: string | null;
     graduation_year?: number | null;
+    profile_score?: number;
   } | null>(null);
 
   const analytics = computeAnalytics(sessions);
   const insights = computeInsights(sessions);
   const metrics = computeMetrics(sessions);
 
-
+  // Color coding helper for profile score
+  const getScoreColor = (score: number) => {
+    if (score < 40) return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
+    if (score < 70) return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' };
+    return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+  };
 
   // Route protection
   useEffect(() => {
@@ -79,20 +85,6 @@ export default function DashboardPage() {
       if (err?.message === "UNAUTHORIZED") router.push("/login");
     }
   };
-
-  const profileCompletion = useMemo(() => {
-    if (!me) return 0;
-
-    const fields = ["full_name", "college", "department", "graduation_year"] as const;
-    let filled = 0;
-
-    for (const f of fields) {
-      const val = (me as any)[f];
-      if (val !== null && val !== undefined && String(val).trim() !== "") filled++;
-    }
-
-    return Math.round((filled / fields.length) * 100);
-  }, [me]);
 
   const fetchSessions = async () => {
     try {
@@ -162,10 +154,23 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-3">
           {me?.email && <span className="badge">{me.email}</span>}
-          {me && (
-            <span className="badge">
-              Profile: {profileCompletion}%
-            </span>
+          {me?.profile_score !== undefined && (
+            <div className="relative group">
+              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getScoreColor(me.profile_score).bg} ${getScoreColor(me.profile_score).text} ${getScoreColor(me.profile_score).border}`}>
+                Profile Score: {me.profile_score}%
+              </span>
+              {/* Tooltip */}
+              <div className="absolute hidden group-hover:block top-full mt-2 right-0 w-64 p-3 bg-white border rounded-lg shadow-lg text-xs z-10">
+                <p className="font-semibold mb-1">How it&apos;s calculated:</p>
+                <ul className="space-y-1 text-gray-600">
+                  <li>✓ Full Name: +25%</li>
+                  <li>✓ College: +25%</li>
+                  <li>✓ Department: +25%</li>
+                  <li>✓ Graduation Year: +25%</li>
+                </ul>
+                <p className="mt-2 text-gray-500">Complete your profile to improve your score!</p>
+              </div>
+            </div>
           )}
 
           <Link className="underline text-sm" href="/">
@@ -180,7 +185,7 @@ export default function DashboardPage() {
             Profile
           </Link>
 
-          {me && profileCompletion < 50 && (
+          {me && me.profile_score !== undefined && me.profile_score < 50 && (
             <button
               onClick={() => router.push("/profile")}
               className="btn-primary"

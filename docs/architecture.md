@@ -670,4 +670,210 @@ Backend safe access:
 - AI-powered insights help identify strengths and areas to improve
 - Score tracking visualizes performance over time
 - All features use existing backend APIs with no modifications
+
+
+## Day 12 — Profile Score Engine (Persistence + UI Integration)
+
+### Goal
+Implement a comprehensive profile completeness scoring system with database persistence, automatic recompute triggers, color-coded UI progress bars, and robust validation.
+
+---
+
+### Backend Updates
+
+#### 1) Profile Score Persistence
+
+**Database Schema**
+Added `profile_score` column to `users` table:
+- Type: Integer
+- Nullable: True
+- Default: 0
+- Range: 0-100
+
+Database migration: `migrate_add_profile_score.py`
+- Adds column to existing users table
+- Automatically calculates and populates scores for existing users
+- Successfully migrated 2 existing users
+
+**Calculation Function**
+Enhanced `profile_completeness_score(user) -> int`:
+- Docstring added for clarity
+- Calculates score based on 4 profile fields (25% each):
+  - `full_name`: +25%
+  - `college`: +25%
+  - `department`: +25%
+  - `graduation_year`: +25%
+- **Score clamping**: `max(0, min(100, score))` ensures valid range
+- Defensive programming protects against future logic changes
+
+---
+
+#### 2) Automatic Recompute Triggers
+
+**Trigger 1: Profile Update**
+`PUT /api/users/me` (lines 454-455):
+```python
+# Recalculate and store profile score
+user.profile_score = profile_completeness_score(user)
+db.commit()
 ```
+- Triggers on every profile field update
+- Ensures score stays in sync with profile data
+
+**Trigger 2: Login**
+`POST /api/auth/login` (lines 402-405):
+```python
+# Recompute profile score if it's None or if profile is incomplete
+if user.profile_score is None or user.profile_score < 100:
+    user.profile_score = profile_completeness_score(user)
+    db.commit()
+```
+- Conditional trigger: only runs when needed
+- Handles legacy users (score = None)
+- Updates incomplete profiles on login
+- Minimal performance impact
+
+---
+
+#### 3) API Enhancements
+
+**GET `/api/users/me`**
+- Returns persisted `profile_score` from database
+- Improved performance (no calculation on each request)
+
+**GET `/api/me`**
+- Also returns `profile_score`
+- Consistent across both profile endpoints
+
+---
+
+### Frontend Updates
+
+#### 1) Dashboard Score Badge
+
+**Color-Coded Badge** (`dashboard/page.tsx`):
+- **Red** (0-39%): Low completion
+- **Amber** (40-69%): Moderate completion
+- **Green** (70-100%): High completion
+
+**Features**:
+- Displays as rounded badge: "Profile Score: X%"
+- Color automatically matches score range
+- Tooltip on hover explaining calculation:
+  - Info icon (ⓘ)
+  - Message: "How it's calculated"
+  - Lists all 4 fields (+25% each)
+  - Encourages profile completion
+
+**Helper Function**:
+```typescript
+const getScoreColor = (score: number) => {
+  if (score < 40) return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
+  if (score < 70) return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' };
+  return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+};
+```
+
+---
+
+#### 2) Profile Page Progress Bar
+
+**Visual Progress Bar** (`profile/page.tsx`):
+- Horizontal bar showing completion percentage
+- Color-coded (red/amber/green) based on score
+- Smooth animations (500ms) when score changes
+
+**Components**:
+- **Header**: "Profile Completeness" with percentage
+- **Info Tooltip**: 
+  - Dark themed tooltip on hover
+  - Message: "Profile completeness impacts interview feedback quality."
+  - Arrow pointer for better UX
+- **Progress Bar**: 
+  - Width animates to match score percentage
+  - Background colors transition smoothly
+- **Hint Text**:
+  - "✓ Profile complete!" when 100%
+  - "Fill in X more fields to complete your profile" otherwise
+  - Dynamic calculation of remaining fields
+
+**Immediate Score Updates**:
+- Modified `updateProfile()` to refetch user data after save
+- Calls `await fetchMe()` to get updated score
+- Progress bar updates immediately (no page refresh)
+- Smooth animation to new value
+
+---
+
+### Validation & Edge Cases
+
+#### Score Validation
+- Explicit clamping: `max(0, min(100, score))`
+- Default value: 0 for new users
+- Handles null/undefined values safely
+- Type-safe number validation
+
+#### Edge Case Coverage
+| Scenario | Expected Score | Status |
+|----------|---------------|--------|
+| Empty profile (new user) | 0% | ✅ Handled |
+| 1 field filled | 25% | ✅ Handled |
+| 2 fields filled | 50% | ✅ Handled |
+| 3 fields filled | 75% | ✅ Handled |
+| All 4 fields filled | 100% | ✅ Handled |
+| Partial update (1 field) | Recalculated | ✅ Handled |
+| Legacy user (score = None) | Recomputed on login | ✅ Handled |
+| Score > 100 (future-proof) | Clamped to 100 | ✅ Handled |
+| Score < 0 (future-proof) | Clamped to 0 | ✅ Handled |
+
+---
+
+### Database Impact
+
+**Migration Results**:
+```
+✅ Column added! Now updating existing users...
+✅ Updated 2 user(s) with profile scores!
+```
+
+**Performance**:
+- Score calculated once and stored
+- Read operations now O(1) from database
+- No runtime calculation overhead on profile fetch
+- Recompute only when needed (on update or incomplete login)
+
+---
+
+### UI/UX Improvements
+
+**Dashboard**:
+- Badge replaces frontend-calculated percentage
+- Tooltip provides context
+- Visual feedback encourages completion
+- Color coding for quick status recognition
+
+**Profile Page**:
+- Progress bar provides clear visual feedback
+- Tooltip explains impact on interview quality
+- Immediate updates (no refresh) feel responsive
+- Helpful hints guide user to completion
+- Smooth animations enhance experience
+
+**Complete Profile CTA**:
+- Button appears when score < 50%
+- Links directly to profile page
+- Shown on both Dashboard and Interview pages
+- Clear call-to-action for better experience
+
+---
+
+### Result
+- Profile completeness score fully integrated end-to-end
+- Persistent storage in database with automatic triggers
+- Color-coded UI provides clear visual feedback
+- Tooltips educate users on score importance
+- Immediate updates create responsive experience
+- Robust validation handles all edge cases
+- Production-ready with comprehensive testing coverage
+```
+

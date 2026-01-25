@@ -152,6 +152,21 @@ def get_db():
     finally:
         db.close()
 
+def profile_completeness_score(user) -> int:
+    """Calculate profile completeness score (0-100)"""
+    score = 0
+    
+    if user.full_name:
+        score += 25
+    if user.college:
+        score += 25
+    if user.department:
+        score += 25
+    if user.graduation_year:
+        score += 25
+    
+    # Clamp score to 0-100 range (defensive programming)
+    return max(0, min(100, score))
 
 
 
@@ -386,6 +401,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    # Recompute profile score if it's None or if profile is incomplete
+    if user.profile_score is None or user.profile_score < 100:
+        user.profile_score = profile_completeness_score(user)
+        db.commit()
+
     token = create_access_token({"user_id": user.id, "email": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
@@ -413,6 +433,7 @@ def get_me(user: User = Depends(get_current_user)):
         "department": user.department,
         "graduation_year": user.graduation_year,
         "created_at": user.created_at,
+        "profile_score": user.profile_score,
     }
 
 
@@ -436,6 +457,9 @@ def update_me(
         user.department = payload.department
     if payload.graduation_year is not None:
         user.graduation_year = payload.graduation_year
+
+    # Recalculate and store profile score
+    user.profile_score = profile_completeness_score(user)
 
     db.commit()
     db.refresh(user)

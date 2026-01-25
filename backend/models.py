@@ -17,6 +17,7 @@ class User(Base):
     college = Column(String, nullable=True)
     department = Column(String, nullable=True)
     graduation_year = Column(Integer, nullable=True)
+    profile_score = Column(Integer, nullable=True, default=0)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
