@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { safeFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
+import { useProfileScore } from "@/hooks/useProfileScore";
 
 type Profile = {
   id: number;
@@ -28,6 +29,8 @@ export default function ProfilePage() {
   const [college, setCollege] = useState("");
   const [department, setDepartment] = useState("");
   const [graduationYear, setGraduationYear] = useState<string>("");
+
+  const { profileData: cachedProfile, refreshScore } = useProfileScore(backendBase);
 
   // Route protection
   useEffect(() => {
@@ -78,6 +81,9 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      // Refresh cache after successful update
+      refreshScore();
 
       // Refetch to get updated profile_score
       await fetchMe();
@@ -146,11 +152,15 @@ export default function ProfilePage() {
                   {/* Progress Bar */}
                   <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-500 ${me.profile_score < 40 ? 'bg-red-500' :
-                          me.profile_score < 70 ? 'bg-amber-500' :
-                            'bg-green-500'
-                        }`}
-                      style={{ width: `${me.profile_score}%` }}
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${me.profile_score}%`,
+                        background: me.profile_score < 40
+                          ? 'rgb(var(--danger))'
+                          : me.profile_score < 71
+                            ? 'rgb(var(--primary-muted))'
+                            : 'rgb(var(--primary))'
+                      }}
                     />
                   </div>
 

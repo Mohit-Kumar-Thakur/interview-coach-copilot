@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { safeFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { useSearchParams } from "next/navigation";
+import ProfileCompletionBanner from "@/components/ProfileCompletionBanner";
+import { useProfileScore } from "@/hooks/useProfileScore";
 
 
 type RoundType = "HR" | "DSA" | "SD";
@@ -68,15 +70,7 @@ export default function InterviewPage() {
   const [resumeId, setResumeId] = useState("");
   const searchParams = useSearchParams();
 
-  const [profile, setProfile] = useState<any>(null);
-
-  const fetchProfile = async () => {
-    try {
-      const res = await safeFetch(`${backendBase}/api/me`);
-      const data = await res.json();
-      setProfile(data);
-    } catch { }
-  };
+  const { profileData: profile } = useProfileScore(backendBase);
 
   const profileCompletion = useMemo(() => {
     if (!profile) return 0;
@@ -157,8 +151,6 @@ export default function InterviewPage() {
   }, []);
 
   useEffect(() => {
-    fetchProfile();
-
     const sid = searchParams.get("resume");
     if (sid) {
       setResumeId(sid);
@@ -326,6 +318,11 @@ export default function InterviewPage() {
 
   return (
     <AppShell title="Interview Session" subtitle="Practice HR / DSA / System Design rounds">
+      {/* Profile Completion Banner */}
+      {profile?.profile_score !== undefined && (
+        <ProfileCompletionBanner score={profile.profile_score} />
+      )}
+
       <div className="grid grid-cols-12 gap-6">
         {/* LEFT */}
         <section className="col-span-12 lg:col-span-3 app-card p-4">

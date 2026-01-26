@@ -19,6 +19,7 @@
   /* primary palette (blue) */
   --primary: 37 99 235;       /* blue-600 */
   --primary-hover: 29 78 216; /* blue-700 */
+  --primary-muted: 96 165 250; /* blue-400 - for 41-70% range */
   --ring: 147 197 253;        /* blue-300 */
 
   /* danger */

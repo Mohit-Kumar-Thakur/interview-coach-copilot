@@ -18,6 +18,21 @@ from fastapi import Header
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi import HTTPException
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from errors import error_response
+from jose import JWTError
+import logging
+from utils.profile_score import calculate_profile_score
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+
+logger = logging.getLogger("interview-api")
+logger.info("Interview Coach API started")
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -127,8 +142,9 @@ def get_current_user(authorization: str = Header(None), db: Session = Depends(ge
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int | None = payload.get("user_id")
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
+            raise HTTPException(status_code=401, detail="Authentication failed")
     except JWTError:
+        logger.warning("JWT authentication failed")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -152,21 +168,6 @@ def get_db():
     finally:
         db.close()
 
-def profile_completeness_score(user) -> int:
-    """Calculate profile completeness score (0-100)"""
-    score = 0
-    
-    if user.full_name:
-        score += 25
-    if user.college:
-        score += 25
-    if user.department:
-        score += 25
-    if user.graduation_year:
-        score += 25
-    
-    # Clamp score to 0-100 range (defensive programming)
-    return max(0, min(100, score))
 
 
 
@@ -224,6 +225,10 @@ def start_interview(
     db.add(Message(session_id=session_id, role="assistant", content=first_question))
 
     db.commit()
+
+    logger.info(
+        f"Session created | user_id={user.id} | session_id={session_id} | round={payload.round}"
+    )
 
     return {
         "session_id": session_id,
@@ -292,6 +297,10 @@ def interview_message(
         db.add(db_session)
 
         response["evaluation"] = evaluation
+
+    logger.info(
+        f"Message | user_id={user.id} | session_id={payload.session_id} | round={round_type}"
+    )
 
     db.commit()
     return response
@@ -403,7 +412,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     # Recompute profile score if it's None or if profile is incomplete
     if user.profile_score is None or user.profile_score < 100:
-        user.profile_score = profile_completeness_score(user)
+        user.profile_score = calculate_profile_score(user)
         db.commit()
 
     token = create_access_token({"user_id": user.id, "email": user.email})
@@ -459,7 +468,11 @@ def update_me(
         user.graduation_year = payload.graduation_year
 
     # Recalculate and store profile score
-    user.profile_score = profile_completeness_score(user)
+    user.profile_score = calculate_profile_score(user)
+
+    logger.info(
+        f"Profile updated | user_id={user.id} | score={calculate_profile_score(user)}"
+    )
 
     db.commit()
     db.refresh(user)
@@ -522,4 +535,44 @@ def resume_session(
         "messages": out_msgs,
         "evaluation": s.evaluation,
     }
-    
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    code = "HTTP_ERROR"
+    if exc.status_code == 401:
+        code = "UNAUTHORIZED"
+    elif exc.status_code == 403:
+        code = "FORBIDDEN"
+    elif exc.status_code == 404:
+        code = "NOT_FOUND"
+
+    return error_response(code, exc.detail, exc.status_code)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return error_response(
+        "VALIDATION_ERROR",
+        "Invalid request payload",
+        422,
+    )
+
+
+@app.exception_handler(JWTError)
+async def jwt_exception_handler(request: Request, exc: JWTError):
+    return error_response(
+        "UNAUTHORIZED",
+        "Invalid or expired token",
+        401,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception", exc_info=exc)
+    return error_response(
+        "INTERNAL_SERVER_ERROR",
+        "Something went wrong",
+        500,
+    )

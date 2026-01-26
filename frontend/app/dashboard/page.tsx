@@ -10,6 +10,8 @@ import { computeAnalytics } from "@/lib/analytics";
 import { computeInsights } from "@/lib/insights";
 import { computeMetrics } from "@/lib/metrics";
 import { exportSessionJSON, exportSessionMarkdown } from "@/lib/exporter";
+import ProfileCompletionBanner from "@/components/ProfileCompletionBanner";
+import { useProfileScore } from "@/hooks/useProfileScore";
 
 
 
@@ -49,42 +51,17 @@ export default function DashboardPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
 
-  const [me, setMe] = useState<{
-    id: number;
-    email: string;
-    full_name?: string | null;
-    college?: string | null;
-    department?: string | null;
-    graduation_year?: number | null;
-    profile_score?: number;
-  } | null>(null);
+  const { profileData: me } = useProfileScore(backendBase);
 
   const analytics = computeAnalytics(sessions);
   const insights = computeInsights(sessions);
   const metrics = computeMetrics(sessions);
-
-  // Color coding helper for profile score
-  const getScoreColor = (score: number) => {
-    if (score < 40) return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
-    if (score < 70) return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' };
-    return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
-  };
 
   // Route protection
   useEffect(() => {
     if (!getToken()) router.push("/login");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const fetchMe = async () => {
-    try {
-      const res = await safeFetch(`${backendBase}/api/me`);
-      const data = await res.json();
-      setMe(data);
-    } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") router.push("/login");
-    }
-  };
 
   const fetchSessions = async () => {
     try {
@@ -123,7 +100,6 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchMe();
     fetchSessions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -156,7 +132,26 @@ export default function DashboardPage() {
           {me?.email && <span className="badge">{me.email}</span>}
           {me?.profile_score !== undefined && (
             <div className="relative group">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getScoreColor(me.profile_score).bg} ${getScoreColor(me.profile_score).text} ${getScoreColor(me.profile_score).border}`}>
+              <span
+                className="px-3 py-1 rounded-full text-xs font-medium border"
+                style={{
+                  background: me.profile_score < 40
+                    ? 'rgb(var(--danger) / 0.1)'
+                    : me.profile_score < 71
+                      ? 'rgb(var(--primary-muted) / 0.1)'
+                      : 'rgb(var(--primary) / 0.1)',
+                  color: me.profile_score < 40
+                    ? 'rgb(var(--danger))'
+                    : me.profile_score < 71
+                      ? 'rgb(var(--primary-muted))'
+                      : 'rgb(var(--primary))',
+                  borderColor: me.profile_score < 40
+                    ? 'rgb(var(--danger) / 0.3)'
+                    : me.profile_score < 71
+                      ? 'rgb(var(--primary-muted) / 0.3)'
+                      : 'rgb(var(--primary) / 0.3)',
+                }}
+              >
                 Profile Score: {me.profile_score}%
               </span>
               {/* Tooltip */}
@@ -205,6 +200,11 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Profile Completion Banner */}
+      {me?.profile_score !== undefined && (
+        <ProfileCompletionBanner score={me.profile_score} />
+      )}
 
       {/* Analytics Panel */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

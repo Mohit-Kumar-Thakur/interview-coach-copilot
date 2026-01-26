@@ -798,6 +798,203 @@ const getScoreColor = (score: number) => {
   - Dynamic calculation of remaining fields
 
 **Immediate Score Updates**:
+- After profile update, page immediately refetches data
+- Progress bar animates to new score value
+- User sees visual confirmation of changes
+
+---
+
+### Testing & Validation
+
+#### Backend Testing
+- Verified profile score calculation correctness
+- Confirmed score persistence in database
+- Validated automatic triggers on login/update
+- Tested clamping logic (0-100 range)
+
+#### Frontend Testing
+- Verified color transitions work correctly
+- Tested tooltip hover interactions
+- Confirmed score updates after profile changes
+- Validated progress bar animations
+
+---
+
+### Performance Notes
+- Profile score **cached at database level** (not calculated on each request)
+- Score **recompute only when needed** (not on every API call)
+- Login trigger **conditional** (skips if score = 100)
+- Frontend uses direct API response (no client-side calculation)
+
+---
+
+### Result
+- ✅ Profile completeness tracked persistently
+- ✅ Automatic score updates on profile changes
+- ✅ Visual feedback across Dashboard and Profile pages
+- ✅ Color-coded UI guides users to completion
+- ✅ Tooltip education improves UX
+- ✅ Performance optimized with selective recalculation
+
+
+## Day 13 — Profile Score Enforcement & Caching
+
+### Goal
+Strengthen profile completeness feedback through soft enforcement and reduce redundant API calls by introducing intelligent caching.
+
+---
+
+### What was implemented
+
+#### 1) Profile Completion Soft Gate
+
+**Non-Blocking Warning Banner**
+- Created reusable `ProfileCompletionBanner` component
+- Displays when `profile_score < 60%`
+- No redirects or feature blocking
+
+**Banner Features**:
+- Info icon with primary color theme
+- Message: "Complete your profile to improve interview quality"
+- Shows current score: "Your profile is X% complete"
+- Direct link to `/profile` page
+
+**Integration Points**:
+- **Dashboard**: Below header, above analytics panel
+- **Interview**: Top of page, above session controls
+
+**Implementation**:
+```tsx
+// Only renders when score < 60%
+if (score >= 60) return null;
+```
+
+---
+
+#### 2) Profile Score Caching Strategy
+
+**Created `useProfileScore` Hook** (`hooks/useProfileScore.ts`)
+
+**Features**:
+- Dual-layer caching: React state + localStorage
+- Background revalidation on mount
+- Manual refresh capability
+- Safe error handling
+
+**Cache Flow**:
+1. **On Mount**:
+   - Load from `localStorage` key: `icc_profile_score`
+   - Render immediately (no loading flash)
+   - Fetch latest in background from `/api/users/me`
+   - Update cache if changed
+
+2. **On Profile Update**:
+   - Call `refreshScore()` after successful PUT
+   - Triggers immediate refetch
+   - Updates both state and localStorage
+
+3. **Browser Refresh**:
+   - Instant render from localStorage
+   - Background revalidation ensures accuracy
+
+**Hook API**:
+```tsx
+const { profileData, loading, refreshScore } = useProfileScore(backendBase);
+```
+
+**Integration**:
+- **Dashboard**: Replaced `fetchMe` with cached hook
+- **Interview**: Replaced `fetchProfile` with cached hook
+- **Profile**: Added `refreshScore()` after update success
+
+**Removed**:
+- ❌ `fetchMe()` function in Dashboard
+- ❌ `fetchProfile()` function in Interview
+- ❌ Redundant useEffect profile fetch calls
+
+---
+
+### Performance Impact
+
+**Before Day 13**:
+- Profile fetched on every page load
+- Multiple redundant API calls during navigation
+- Flash of loading state on refresh
+
+**After Day 13**:
+- Profile cached on first load
+- Zero redundant API calls during session
+- Instant render from cache
+- Background revalidation ensures freshness
+
+**Network Savings**:
+- Dashboard → Interview → Dashboard: 3 calls → 1 call
+- Browser refresh: new API call → served from cache
+
+---
+
+### UX Improvements
+
+**Soft Gate Benefits**:
+- ✅ Encourages profile completion without frustration
+- ✅ Clear value proposition (better interview quality)
+- ✅ Non-intrusive (banner appears, doesn't block)
+- ✅ Easy action (one-click to profile page)
+
+**Caching Benefits**:
+- ✅ Faster page loads (instant render)
+- ✅ Smoother navigation (no loading flashes)
+- ✅ Reduced server load
+- ✅ Better offline experience (cached data available)
+
+---
+
+### Architecture Notes
+
+**Design Principles**:
+- No new backend endpoints
+- No global state library (Context/Redux)
+- Frontend-driven caching
+- React hooks for reusability
+- localStorage for persistence
+
+**Cache Invalidation**:
+- Automatic after profile update
+- Background revalidation on mount
+- No TTL needed (profile changes infrequently)
+
+**Type Safety**:
+- Strongly typed `ProfileData` interface
+- Safe localStorage parsing with try/catch
+- Defensive null checks
+
+---
+
+### Files Created
+
+- `frontend/hooks/useProfileScore.ts` - Caching hook
+- `frontend/components/ProfileCompletionBanner.tsx` - Soft gate banner
+
+### Files Modified
+
+- `frontend/app/dashboard/page.tsx` - Integrated caching + banner
+- `frontend/app/interview/page.tsx` - Integrated caching + banner
+- `frontend/app/profile/page.tsx` - Added cache refresh on update
+- `frontend/app/globals.css` - Theme token: `--primary-muted`
+
+---
+
+### Result
+- ✅ Profile score displayed with theme-consistent colors
+- ✅ Soft gate encourages completion (60% threshold)
+- ✅ Zero redundant API calls during active session
+- ✅ Instant page renders from cached data
+- ✅ Background revalidation ensures accuracy
+- ✅ Cache refreshes automatically on updates
+- ✅ No backend changes required
+- ✅ No global state complexity introduced
+```
+
 - Modified `updateProfile()` to refetch user data after save
 - Calls `await fetchMe()` to get updated score
 - Progress bar updates immediately (no page refresh)
