@@ -12,6 +12,7 @@ import { computeMetrics } from "@/lib/metrics";
 import { exportSessionJSON, exportSessionMarkdown } from "@/lib/exporter";
 import ProfileCompletionBanner from "@/components/ProfileCompletionBanner";
 import { useProfileScore } from "@/hooks/useProfileScore";
+import { getProfileScoreStyle } from "@/lib/profile-utils";
 
 
 
@@ -70,11 +71,7 @@ export default function DashboardPage() {
       const data = await res.json();
       setSessions(Array.isArray(data) ? data : data.sessions ?? []);
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") {
-        router.push("/login");
-        return;
-      }
-      alert("Failed to load sessions.");
+      // Error already handled by safeFetch
     } finally {
       setLoading(false);
     }
@@ -89,11 +86,7 @@ export default function DashboardPage() {
       const data = await res.json();
       setDetail(data);
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") {
-        router.push("/login");
-        return;
-      }
-      alert("Failed to load session detail.");
+      // Error already handled by safeFetch
     } finally {
       setLoading(false);
     }
@@ -134,23 +127,7 @@ export default function DashboardPage() {
             <div className="relative group">
               <span
                 className="px-3 py-1 rounded-full text-xs font-medium border"
-                style={{
-                  background: me.profile_score < 40
-                    ? 'rgb(var(--danger) / 0.1)'
-                    : me.profile_score < 71
-                      ? 'rgb(var(--primary-muted) / 0.1)'
-                      : 'rgb(var(--primary) / 0.1)',
-                  color: me.profile_score < 40
-                    ? 'rgb(var(--danger))'
-                    : me.profile_score < 71
-                      ? 'rgb(var(--primary-muted))'
-                      : 'rgb(var(--primary))',
-                  borderColor: me.profile_score < 40
-                    ? 'rgb(var(--danger) / 0.3)'
-                    : me.profile_score < 71
-                      ? 'rgb(var(--primary-muted) / 0.3)'
-                      : 'rgb(var(--primary) / 0.3)',
-                }}
+                style={getProfileScoreStyle(me.profile_score)}
               >
                 Profile Score: {me.profile_score}%
               </span>

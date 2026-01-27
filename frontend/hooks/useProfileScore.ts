@@ -3,7 +3,7 @@ import { safeFetch } from "@/lib/api";
 
 const CACHE_KEY = "icc_profile_score";
 
-type ProfileData = {
+export type ProfileData = {
     id: number;
     email: string;
     full_name: string | null;

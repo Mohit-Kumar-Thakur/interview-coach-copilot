@@ -8,6 +8,7 @@ import AppShell from "@/components/AppShell";
 import { useSearchParams } from "next/navigation";
 import ProfileCompletionBanner from "@/components/ProfileCompletionBanner";
 import { useProfileScore } from "@/hooks/useProfileScore";
+import { showToast } from "@/lib/toast";
 
 
 type RoundType = "HR" | "DSA" | "SD";
@@ -68,23 +69,10 @@ export default function InterviewPage() {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
   const [resumeId, setResumeId] = useState("");
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   const { profileData: profile } = useProfileScore(backendBase);
-
-  const profileCompletion = useMemo(() => {
-    if (!profile) return 0;
-
-    const fields = ["full_name", "college", "department", "graduation_year"] as const;
-    let filled = 0;
-
-    for (const f of fields) {
-      const val = profile?.[f];
-      if (val !== null && val !== undefined && String(val).trim() !== "") filled++;
-    }
-
-    return Math.round((filled / fields.length) * 100);
-  }, [profile]);
 
 
   const persistState = (
@@ -169,9 +157,26 @@ export default function InterviewPage() {
     persistState({ messages: [], evaluation: null });
   };
 
+  const clearLocalStorageForSession = () => {
+    if (typeof window === "undefined") return;
+
+    localStorage.removeItem(STORAGE.sessionId);
+    localStorage.removeItem(STORAGE.messages);
+    localStorage.removeItem(STORAGE.evaluation);
+    // Keep round preference
+
+    // Also clear state
+    setSessionId(null);
+    setMessages([]);
+    setEvaluation(null);
+  };
+
   const resumeSession = async () => {
+    // Clear previous error
+    setResumeError(null);
+
     if (!resumeId.trim()) {
-      alert("Enter a session id");
+      setResumeError("Please enter a session ID");
       return;
     }
 
@@ -197,13 +202,25 @@ export default function InterviewPage() {
         evaluation: data.evaluation || null,
       });
 
-      alert("Session resumed successfully");
+      showToast("Session resumed successfully", "success");
+      setResumeError(null);
+      setResumeId(""); // Clear input on success
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") {
-        router.push("/login");
-        return;
+      // Clear localStorage on resume error
+      clearLocalStorageForSession();
+
+      // Handle specific error codes
+      if (err.code === 404) {
+        setResumeError("Session not found. It may have been deleted.");
+      } else if (err.code === 403) {
+        setResumeError("Access denied. This session belongs to another account.");
+      } else if (err.code === 401) {
+        // 401 already handled by safeFetch (logout + redirect)
+        // But set message in case we're still here
+        setResumeError("Session expired. Please login again.");
+      } else {
+        setResumeError("Failed to resume session. Please try again.");
       }
-      alert("Failed to resume session");
     } finally {
       setLoading(false);
     }
@@ -252,11 +269,7 @@ export default function InterviewPage() {
         evaluation: null,
       });
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") {
-        router.push("/login");
-        return;
-      }
-      alert("Failed to start interview.");
+      // Error already handled by safeFetch
     } finally {
       setLoading(false);
     }
@@ -306,11 +319,7 @@ export default function InterviewPage() {
         persistState({ evaluation: data.evaluation });
       }
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") {
-        router.push("/login");
-        return;
-      }
-      alert("Failed to send message.");
+      // Error already handled by safeFetch
     } finally {
       setLoading(false);
     }
@@ -375,11 +384,28 @@ export default function InterviewPage() {
 
             <input
               value={resumeId}
-              onChange={(e) => setResumeId(e.target.value)}
+              onChange={(e) => {
+                setResumeId(e.target.value);
+                setResumeError(null); // Clear error on type
+              }}
               placeholder="session_xxxxxxxx"
-              className="input"
+              className={`input ${resumeError ? 'border-red-500' : ''}`}
               disabled={loading}
             />
+
+            {/* Inline Error Message */}
+            {resumeError && (
+              <div
+                className="text-xs px-3 py-2 rounded-lg border"
+                style={{
+                  background: 'rgb(var(--danger) / 0.1)',
+                  borderColor: 'rgb(var(--danger) / 0.3)',
+                  color: 'rgb(var(--danger))',
+                }}
+              >
+                {resumeError}
+              </div>
+            )}
 
             <button
               onClick={resumeSession}
@@ -390,7 +416,7 @@ export default function InterviewPage() {
             </button>
           </div>
 
-          {profile && profileCompletion < 50 && (
+          {profile && profile.profile_score !== undefined && profile.profile_score < 50 && (
             <div className="mt-4">
               <p className="text-xs mb-2" style={{ color: "rgb(var(--danger))" }}>
                 Profile is incomplete. Completing profile improves evaluation relevance.

@@ -5,24 +5,16 @@ import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { safeFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
-import { useProfileScore } from "@/hooks/useProfileScore";
+import { useProfileScore, type ProfileData } from "@/hooks/useProfileScore";
+import { getProfileScoreProgressColor, getProfileScoreMessage } from "@/lib/profile-utils";
+import { showToast } from "@/lib/toast";
 
-type Profile = {
-  id: number;
-  email: string;
-  full_name: string | null;
-  college: string | null;
-  department: string | null;
-  graduation_year: number | null;
-  profile_score?: number;
-  created_at?: string;
-};
+
 
 export default function ProfilePage() {
   const router = useRouter();
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
 
-  const [me, setMe] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [fullName, setFullName] = useState("");
@@ -30,7 +22,7 @@ export default function ProfilePage() {
   const [department, setDepartment] = useState("");
   const [graduationYear, setGraduationYear] = useState<string>("");
 
-  const { profileData: cachedProfile, refreshScore } = useProfileScore(backendBase);
+  const { profileData: me, refreshScore } = useProfileScore(backendBase);
 
   // Route protection
   useEffect(() => {
@@ -38,30 +30,15 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchMe = async () => {
-    try {
-      setLoading(true);
-      const res = await safeFetch(`${backendBase}/api/users/me`);
-      const data = await res.json();
-
-      setMe(data);
-
-      setFullName(data.full_name ?? "");
-      setCollege(data.college ?? "");
-      setDepartment(data.department ?? "");
-      setGraduationYear(data.graduation_year ? String(data.graduation_year) : "");
-    } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") router.push("/login");
-      else alert("Failed to load profile.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Initialize form fields when profile data loads
   useEffect(() => {
-    fetchMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (me) {
+      setFullName(me.full_name ?? "");
+      setCollege(me.college ?? "");
+      setDepartment(me.department ?? "");
+      setGraduationYear(me.graduation_year ? String(me.graduation_year) : "");
+    }
+  }, [me]);
 
   const updateProfile = async () => {
     try {
@@ -85,13 +62,9 @@ export default function ProfilePage() {
       // Refresh cache after successful update
       refreshScore();
 
-      // Refetch to get updated profile_score
-      await fetchMe();
-
-      alert("Profile updated ✅");
+      showToast("Profile updated ✅", "success");
     } catch (err: any) {
-      if (err?.message === "UNAUTHORIZED") router.push("/login");
-      else alert("Failed to update profile.");
+      // Error already handled by safeFetch
     } finally {
       setLoading(false);
     }
@@ -119,7 +92,7 @@ export default function ProfilePage() {
                 </div>
 
                 <button
-                  onClick={fetchMe}
+                  onClick={refreshScore}
                   disabled={loading}
                   className="btn-outline disabled:opacity-60"
                 >
@@ -155,18 +128,13 @@ export default function ProfilePage() {
                       className="h-full transition-all duration-500"
                       style={{
                         width: `${me.profile_score}%`,
-                        background: me.profile_score < 40
-                          ? 'rgb(var(--danger))'
-                          : me.profile_score < 71
-                            ? 'rgb(var(--primary-muted))'
-                            : 'rgb(var(--primary))'
+                        background: getProfileScoreProgressColor(me.profile_score),
                       }}
                     />
                   </div>
 
                   <p className="text-xs text-gray-500 mt-1">
-                    {me.profile_score === 100 ? '✓ Profile complete!' :
-                      `Fill in ${Math.ceil((100 - me.profile_score) / 25)} more ${Math.ceil((100 - me.profile_score) / 25) === 1 ? 'field' : 'fields'} to complete your profile`}
+                    {getProfileScoreMessage(me.profile_score)}
                   </p>
                 </div>
               )}

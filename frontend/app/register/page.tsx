@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { showToast } from "@/lib/toast";
 
 export default function RegisterPage() {
   const backendBase = useMemo(() => "http://127.0.0.1:8000", []);
@@ -23,14 +24,14 @@ export default function RegisterPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        alert(err.detail || "Register failed");
+        showToast(err.detail || "Register failed", "error");
         return;
       }
 
-      alert("Registered! Now login.");
+      showToast("Registered! Now login.", "success");
       router.push("/login");
     } catch {
-      alert("Register failed.");
+      showToast("Register failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -42,30 +43,30 @@ export default function RegisterPage() {
         <h1 className="text-xl font-semibold mb-4">Register</h1>
 
         <label htmlFor="email" className="block text-sm mb-1">
-  Email
-</label>
-<input
-  id="email"
-  name="email"
-  type="email"
-  placeholder="Enter your email"
-  className="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
-/>
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="Enter your email"
+          className="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-<label htmlFor="password" className="block text-sm mb-1">
-  Password
-</label>
-<input
-  id="password"
-  name="password"
-  type="password"
-  placeholder="Create a password"
-  className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-/>
+        <label htmlFor="password" className="block text-sm mb-1">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Create a password"
+          className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
 
         <button

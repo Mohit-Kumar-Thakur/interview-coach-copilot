@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { setToken } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
 
 
 
@@ -25,7 +26,7 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        alert("Invalid credentials");
+        showToast("Invalid credentials", "error");
         return;
       }
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
       setToken(data.access_token);
       router.push("/dashboard");
     } catch {
-      alert("Login failed.");
+      showToast("Login failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -45,30 +46,30 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold mb-4">Login</h1>
 
         <label htmlFor="email" className="block text-sm mb-1">
-  Email
-</label>
-<input
-  id="email"
-  name="email"
-  type="email"
-  placeholder="Enter your email"
-  className="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
-/>
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="Enter your email"
+          className="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-<label htmlFor="password" className="block text-sm mb-1">
-  Password
-</label>
-<input
-  id="password"
-  name="password"
-  type="password"
-  placeholder="Enter your password"
-  className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-/>
+        <label htmlFor="password" className="block text-sm mb-1">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Enter your password"
+          className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
 
 
