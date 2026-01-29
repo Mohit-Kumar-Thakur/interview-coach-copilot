@@ -60,65 +60,82 @@
 }
 
 body {
-  background: rgb(var(--bg));
-  color: rgb(var(--text));
+  background: #18181b;
+  /* zinc-900 */
+  color: #ffffff;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 /* =========================
    Reusable Components
+   Dark Transparent Theme
    ========================= */
 @layer components {
   .app-card {
-    @apply border rounded-2xl shadow-sm;
-    background: rgb(var(--card));
-    border-color: rgb(var(--border));
+    @apply border rounded-2xl shadow-md;
+    background: rgba(39, 39, 42, 0.7);
+    /* zinc-800/70 */
+    border-color: rgba(63, 63, 70, 0.5);
+    /* zinc-700/50 */
+    backdrop-filter: blur(8px);
   }
 
   .app-title {
-    @apply text-xl font-semibold;
+    @apply text-xl font-semibold text-white;
   }
 
   .app-subtitle {
-    @apply text-sm;
-    color: rgb(var(--subtext));
+    @apply text-sm text-zinc-400;
   }
 
   .btn-primary {
     @apply rounded-xl px-4 py-2 text-sm font-medium text-white transition;
-    background: rgb(var(--primary));
+    background: rgba(99, 102, 241, 0.8);
+    /* indigo-500/80 */
   }
 
   .btn-primary:hover {
-    background: rgb(var(--primary-hover));
+    background: rgba(79, 70, 229, 0.9);
+    /* indigo-600/90 */
   }
 
   .btn-outline {
-    @apply rounded-xl px-4 py-2 text-sm font-medium transition border;
-    background: rgb(var(--card));
-    border-color: rgb(var(--border));
+    @apply rounded-xl px-4 py-2 text-sm font-medium transition border text-white;
+    background: rgba(63, 63, 70, 0.5);
+    /* zinc-700/50 */
+    border-color: rgba(82, 82, 91, 0.5);
+    /* zinc-600/50 */
+    backdrop-filter: blur(4px);
   }
 
   .btn-outline:hover {
-    background: rgb(var(--muted));
+    background: rgba(63, 63, 70, 0.7);
+    /* zinc-700/70 */
   }
 
   .input {
-    @apply w-full border rounded-xl px-3 py-2 text-sm outline-none transition;
-    background: rgb(var(--card));
-    border-color: rgb(var(--border));
+    @apply w-full border rounded-xl px-3 py-2 text-sm outline-none transition text-white placeholder-zinc-400;
+    background: rgba(63, 63, 70, 0.6);
+    /* zinc-700/60 */
+    border-color: rgba(82, 82, 91, 0.5);
+    /* zinc-600/50 */
+    backdrop-filter: blur(4px);
   }
 
   .input:focus {
-    border-color: rgb(var(--primary));
-    box-shadow: 0 0 0 3px rgb(var(--ring) / 0.4);
+    border-color: rgba(129, 140, 248, 1);
+    /* indigo-400 */
+    background: rgba(63, 63, 70, 0.8);
+    /* zinc-700/80 */
   }
 
   .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium border;
-    background: rgb(var(--card));
-    border-color: rgb(var(--border));
-    color: rgb(var(--text));
+    @apply inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium border text-white;
+    background: rgba(63, 63, 70, 0.6);
+    /* zinc-700/60 */
+    border-color: rgba(82, 82, 91, 0.5);
+    /* zinc-600/50 */
+    backdrop-filter: blur(4px);
   }
 }
 
@@ -142,4 +159,214 @@ body {
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
+}
+
+/* =========================
+   Gradient Card Component
+   ========================= */
+.gradient-card {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  background-color: #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 48px;
+  gap: 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.gradient-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  left: -5px;
+  margin: auto;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  border-radius: 18px;
+  background: linear-gradient(-45deg, #e81cff 0%, #40c9ff 100%);
+  z-index: -10;
+  pointer-events: none;
+  transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.gradient-card::after {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(-45deg, #fc00ff 0%, #00dbde 100%);
+  transform: translate3d(0, 0, 0) scale(0.95);
+  filter: blur(20px);
+  border-radius: 16px;
+}
+
+.gradient-card:hover::after {
+  filter: blur(30px);
+}
+
+.gradient-card:hover::before {
+  transform: rotate(-90deg) scaleX(1.34) scaleY(0.77);
+}
+
+.gradient-card .heading {
+  font-size: 32px;
+  text-transform: capitalize;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.gradient-card .description {
+  font-size: 16px;
+  color: #d1d5db;
+  margin: 0;
+}
+
+.gradient-card .highlight {
+  color: #e81cff;
+  font-weight: 600;
+}
+
+/* =========================
+   Notification Card Styles
+   ========================= */
+.notification {
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  position: relative;
+  width: 100%;
+  background: #29292c;
+  border-radius: 1rem;
+  overflow: hidden;
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+  font-size: 16px;
+  --gradient: linear-gradient(to bottom, #2eadff, #3d83ff, #7e61ff);
+  --color: #32a6ff;
+}
+
+.notification::before {
+  position: absolute;
+  content: "";
+  inset: 0.0625rem;
+  border-radius: 0.9375rem;
+  background: #18181b;
+  z-index: 2;
+}
+
+.notification::after {
+  position: absolute;
+  content: "";
+  width: 0.25rem;
+  inset: 0.65rem auto 0.65rem 0.5rem;
+  border-radius: 0.125rem;
+  background: var(--gradient);
+  transition: transform 300ms ease;
+  z-index: 4;
+}
+
+.notification:hover::after {
+  transform: translateX(0.15rem);
+}
+
+.notititle {
+  color: var(--color);
+  padding: 0.65rem 0.25rem 0.4rem 1.25rem;
+  font-weight: 500;
+  font-size: 1.1rem;
+  transition: transform 300ms ease;
+  z-index: 5;
+}
+
+.notification:hover .notititle {
+  transform: translateX(0.15rem);
+}
+
+.notibody {
+  color: #99999d;
+  padding: 0 1.25rem;
+  transition: transform 300ms ease;
+  z-index: 5;
+}
+
+.notification:hover .notibody {
+  transform: translateX(0.25rem);
+}
+
+.notiglow,
+.notiborderglow {
+  position: absolute;
+  width: 20rem;
+  height: 20rem;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle closest-side at center, white, transparent);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.notiglow {
+  z-index: 3;
+}
+
+.notiborderglow {
+  z-index: 1;
+}
+
+.notification:hover .notiglow {
+  opacity: 0.1;
+}
+
+.notification:hover .notiborderglow {
+  opacity: 0.1;
+}
+
+/* =========================
+   Gradient Glow Button
+   ========================= */
+.glow-button {
+  min-width: 120px;
+  height: 50px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 1rem;
+  border: none;
+  position: relative;
+  background: #100720;
+  transition: 0.1s;
+  padding: 0 24px;
+}
+
+.glow-button::after {
+  content: '';
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle farthest-corner at 10% 20%, rgba(255, 94, 247, 1) 17.8%, rgba(2, 245, 255, 1) 100.2%);
+  filter: blur(15px);
+  z-index: -1;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 1rem;
+}
+
+.glow-button:active {
+  transform: scale(0.9) rotate(3deg);
+  background: radial-gradient(circle farthest-corner at 10% 20%, rgba(255, 94, 247, 1) 17.8%, rgba(2, 245, 255, 1) 100.2%);
+  transition: 0.5s;
+}
+
+.glow-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.glow-button:disabled:active {
+  transform: none;
 }

@@ -333,171 +333,168 @@ export default function InterviewPage() {
       )}
 
       <div className="grid grid-cols-12 gap-6">
-        {/* LEFT */}
-        <section className="col-span-12 lg:col-span-3 app-card p-4">
-          <h2 className="font-semibold mb-3">Session Controls</h2>
-
-          <div className="space-y-3 text-sm">
-            <div>
-              <label htmlFor="round" className="font-medium block mb-1">
-                Round
-              </label>
-
-              <select
-                id="round"
-                value={round}
-                onChange={(e) => {
-                  const r = e.target.value as RoundType;
-                  setRound(r);
-                  persistState({ round: r });
-                }}
-                className="input"
-                disabled={loading}
-              >
-                <option value="HR">HR</option>
-                <option value="DSA">DSA</option>
-                <option value="SD">System Design</option>
-              </select>
-            </div>
-
-            <div>
-              <span className="font-medium">Difficulty:</span>{" "}
-              <span style={{ color: "rgb(var(--subtext))" }}>{difficulty}</span>
-            </div>
-
-            <div className="text-xs break-words">
-              <span className="font-medium">Session ID:</span>{" "}
-              <span style={{ color: "rgb(var(--subtext))" }}>
-                {sessionId ? sessionId : "--"}
-              </span>
-            </div>
-
-            <div className="text-xs break-words">
-              <span className="font-medium">Health:</span>{" "}
-              <span style={{ color: "rgb(var(--subtext))" }}>{healthStatus}</span>
-            </div>
+        {/* LEFT - Session Controls */}
+        <section className="col-span-12 lg:col-span-3 bg-zinc-800/70 backdrop-blur-sm rounded-2xl shadow-md overflow-hidden border border-zinc-700/50">
+          <div className="px-4 py-3 border-b border-zinc-700/50 bg-zinc-900/40">
+            <h2 className="text-lg font-semibold text-white">Session Controls</h2>
           </div>
+          <div className="p-4">
+            <div className="space-y-3 text-sm">
+              <div>
+                <label htmlFor="round" className="font-medium block mb-1 text-white">
+                  Round
+                </label>
 
-          {/* Resume */}
-          <div className="mt-4 space-y-2">
-            <label className="text-xs font-medium">Resume Session ID</label>
+                <select
+                  id="round"
+                  value={round}
+                  onChange={(e) => {
+                    const r = e.target.value as RoundType;
+                    setRound(r);
+                    persistState({ round: r });
+                  }}
+                  className="input"
+                  disabled={loading}
+                >
+                  <option value="HR">HR</option>
+                  <option value="DSA">DSA</option>
+                  <option value="SD">System Design</option>
+                </select>
+              </div>
 
-            <input
-              value={resumeId}
-              onChange={(e) => {
-                setResumeId(e.target.value);
-                setResumeError(null); // Clear error on type
-              }}
-              placeholder="session_xxxxxxxx"
-              className={`input ${resumeError ? 'border-red-500' : ''}`}
-              disabled={loading}
-            />
+              <div>
+                <span className="font-medium text-white">Difficulty:</span>{" "}
+                <span className="text-zinc-400">{difficulty}</span>
+              </div>
 
-            {/* Inline Error Message */}
-            {resumeError && (
-              <div
-                className="text-xs px-3 py-2 rounded-lg border"
-                style={{
-                  background: 'rgb(var(--danger) / 0.1)',
-                  borderColor: 'rgb(var(--danger) / 0.3)',
-                  color: 'rgb(var(--danger))',
+              <div className="text-xs break-words">
+                <span className="font-medium text-white">Session ID:</span>{" "}
+                <span className="text-zinc-400">
+                  {sessionId ? sessionId : "--"}
+                </span>
+              </div>
+
+              <div className="text-xs break-words">
+                <span className="font-medium text-white">Health:</span>{" "}
+                <span className="text-zinc-400">{healthStatus}</span>
+              </div>
+            </div>
+
+            {/* Resume */}
+            <div className="mt-4 space-y-2">
+              <label className="text-xs font-medium text-white">Resume Session ID</label>
+
+              <input
+                value={resumeId}
+                onChange={(e) => {
+                  setResumeId(e.target.value);
+                  setResumeError(null); // Clear error on type
                 }}
+                placeholder="session_xxxxxxxx"
+                className={`input ${resumeError ? 'border-red-500' : ''}`}
+                disabled={loading}
+              />
+
+              {/* Inline Error Message */}
+              {resumeError && (
+                <div
+                  className="text-xs px-3 py-2 rounded-lg border bg-red-500/10 border-red-500/30 text-red-500"
+                >
+                  {resumeError}
+                </div>
+              )}
+
+              <button
+                onClick={resumeSession}
+                disabled={loading}
+                className="btn-outline w-full disabled:opacity-60"
               >
-                {resumeError}
+                Resume Session
+              </button>
+            </div>
+
+            {profile && profile.profile_score !== undefined && profile.profile_score < 50 && (
+              <div className="mt-4">
+                <p className="text-xs mb-2 text-red-500">
+                  Profile is incomplete. Completing profile improves evaluation relevance.
+                </p>
+
+                <button
+                  onClick={() => router.push("/profile")}
+                  className="btn-primary w-full"
+                >
+                  Complete Profile
+                </button>
               </div>
             )}
 
-            <button
-              onClick={resumeSession}
-              disabled={loading}
-              className="btn-outline w-full disabled:opacity-60"
-            >
-              Resume Session
-            </button>
-          </div>
-
-          {profile && profile.profile_score !== undefined && profile.profile_score < 50 && (
-            <div className="mt-4">
-              <p className="text-xs mb-2" style={{ color: "rgb(var(--danger))" }}>
-                Profile is incomplete. Completing profile improves evaluation relevance.
-              </p>
+            {/* Buttons */}
+            <div className="mt-4 grid grid-cols-1 gap-2">
+              <button
+                onClick={startInterview}
+                disabled={loading}
+                className="btn-primary w-full disabled:opacity-60"
+              >
+                {loading ? "Starting..." : "New Interview"}
+              </button>
 
               <button
-                onClick={() => router.push("/profile")}
-                className="btn-primary w-full"
+                onClick={clearChat}
+                disabled={loading}
+                className="btn-outline w-full disabled:opacity-60"
               >
-                Complete Profile
+                Clear Chat (UI)
               </button>
             </div>
-          )}
-
-          {/* Buttons */}
-          <div className="mt-4 grid grid-cols-1 gap-2">
-            <button
-              onClick={startInterview}
-              disabled={loading}
-              className="btn-primary w-full disabled:opacity-60"
-            >
-              {loading ? "Starting..." : "New Interview"}
-            </button>
 
             <button
-              onClick={clearChat}
+              onClick={testBackend}
+              className="btn-outline mt-3 w-full disabled:opacity-60"
               disabled={loading}
-              className="btn-outline w-full disabled:opacity-60"
             >
-              Clear Chat (UI)
+              Test Backend
             </button>
+
+            {profile && (
+              <div className="mt-4 border rounded-2xl p-3 bg-zinc-700/50 border-indigo-500/50 backdrop-blur-sm">
+                <p className="text-xs font-semibold mb-2 text-indigo-400">Profile</p>
+                <p className="text-xs text-zinc-400">
+                  {profile.full_name || "No name"} • {profile.department || "No dept"} •{" "}
+                  {profile.college || "No college"}
+                </p>
+              </div>
+            )}
           </div>
-
-          <button
-            onClick={testBackend}
-            className="btn-outline mt-3 w-full disabled:opacity-60"
-            disabled={loading}
-          >
-            Test Backend
-          </button>
-
-          {profile && (
-            <div className="mt-4 border rounded-2xl p-3 bg-white"
-              style={{ borderColor: "rgb(var(--border))" }}>
-              <p className="text-xs font-semibold mb-2">Profile</p>
-              <p className="text-xs" style={{ color: "rgb(var(--subtext))" }}>
-                {profile.full_name || "No name"} • {profile.department || "No dept"} •{" "}
-                {profile.college || "No college"}
-              </p>
-            </div>
-          )}
         </section>
 
-        {/* MIDDLE */}
-        <section className="col-span-12 lg:col-span-6 app-card p-4 flex flex-col h-[75vh]">
-          <h2 className="font-semibold mb-3">Chat</h2>
+        {/* MIDDLE - Chat Section with Chatbot Design */}
+        <section className="col-span-12 lg:col-span-6 bg-zinc-800/70 backdrop-blur-sm rounded-2xl shadow-md overflow-hidden flex flex-col h-[75vh] border border-zinc-700/50">
+          {/* Chat Header */}
+          <div className="px-4 py-3 border-b border-zinc-700/50 bg-zinc-900/40">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">Chat</h2>
+              {sessionId && (
+                <div className="bg-green-500/90 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                  Active
+                </div>
+              )}
+            </div>
+          </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+          {/* Messages Area */}
+          <div className="flex-1 p-3 overflow-y-auto flex flex-col space-y-2">
             {messages.length === 0 ? (
-              <div className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
+              <div className="text-sm text-zinc-400 text-center mt-8">
                 Click <b>New Interview</b> to begin.
               </div>
             ) : (
               messages.map((m, idx) => (
                 <div
                   key={idx}
-                  className="max-w-[85%] rounded-xl px-3 py-2 text-sm border"
-                  style={
-                    m.role === "user"
-                      ? {
-                        marginLeft: "auto",
-                        background: "rgb(var(--text))",
-                        color: "white",
-                        borderColor: "rgb(var(--text))",
-                      }
-                      : {
-                        background: "rgb(var(--muted))",
-                        color: "rgb(var(--text))",
-                        borderColor: "rgb(var(--border))",
-                      }
-                  }
+                  className={`chat-message max-w-xs rounded-lg px-3 py-2 text-sm ${m.role === "user"
+                    ? "self-end bg-indigo-500/80 text-white backdrop-blur-sm"
+                    : "self-start bg-zinc-700/70 text-white backdrop-blur-sm"
+                    }`}
                 >
                   {m.content}
                 </div>
@@ -505,54 +502,55 @@ export default function InterviewPage() {
             )}
 
             {loading && (
-              <div className="text-xs" style={{ color: "rgb(var(--subtext))" }}>
+              <div className="text-xs text-zinc-400">
                 Thinking...
               </div>
             )}
           </div>
 
-          <div className="mt-4 flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your answer..."
-              className="input flex-1"
-              disabled={loading}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") sendMessage();
-              }}
-            />
+          {/* Input Area */}
+          <div className="px-3 py-2 border-t border-zinc-700/50 bg-zinc-900/40">
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 p-2 border rounded-lg bg-zinc-700/60 text-white border-zinc-600/50 text-sm outline-none focus:border-indigo-400 focus:bg-zinc-700/80 transition-colors backdrop-blur-sm placeholder-zinc-400"
+                disabled={loading}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage();
+                }}
+              />
 
-            <button
-              onClick={sendMessage}
-              disabled={loading}
-              className="btn-primary disabled:opacity-60"
-            >
-              {loading ? "..." : "Send"}
-            </button>
+              <button
+                onClick={sendMessage}
+                disabled={loading}
+                className="glow-button disabled:opacity-60"
+              >
+                {loading ? "..." : "Send"}
+              </button>
+            </div>
           </div>
         </section>
 
-        {/* RIGHT */}
-        <section className="col-span-12 lg:col-span-3 app-card p-4 h-[75vh] overflow-y-auto">
-          <h2 className="font-semibold mb-3">Evaluation</h2>
+        {/* RIGHT - Evaluation */}
+        <section className="col-span-12 lg:col-span-3 bg-zinc-800/70 backdrop-blur-sm rounded-2xl shadow-md overflow-hidden border border-zinc-700/50 h-[75vh]">
+          <div className="px-4 py-3 border-b border-zinc-700/50 bg-zinc-900/40">
+            <h2 className="text-lg font-semibold text-white">Evaluation</h2>
+          </div>
 
           {!evaluation ? (
-            <p className="text-sm" style={{ color: "rgb(var(--subtext))" }}>
+            <p className="p-4 text-sm text-zinc-400">
               No evaluation yet. Send an HR answer to see scoring.
             </p>
           ) : (
-            <div className="space-y-4 text-sm">
+            <div className="p-4 space-y-4 text-sm overflow-y-auto" style={{ maxHeight: 'calc(75vh - 60px)' }}>
               <div
-                className="border rounded-2xl p-4"
-                style={{
-                  background: "rgb(var(--muted))",
-                  borderColor: "rgb(var(--border))",
-                }}
+                className="border rounded-2xl p-4 bg-zinc-700/50 border-indigo-500/50 backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">Score</span>
-                  <span className="font-bold text-lg">{evaluation.score}/10</span>
+                  <span className="font-medium text-indigo-400">Score</span>
+                  <span className="font-bold text-lg text-white">{evaluation.score}/10</span>
                 </div>
               </div>
             </div>
